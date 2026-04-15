@@ -576,26 +576,28 @@ def render_stat_grid(df):
     three_pct = threes['SHOT_MADE_FLAG'].mean() if len(threes) > 0 else 0
     pps = ((made * 2) + threes['SHOT_MADE_FLAG'].sum()) / total if total else 0
     st.markdown(f"""
-    <div class="stat-grid">
-        <div class="stat-cell">
-            <div class="stat-cell-val">{total}</div>
-            <div class="stat-cell-label">FGA</div>
-        </div>
-        <div class="stat-cell">
-            <div class="stat-cell-val">{pct:.1%}</div>
-            <div class="stat-cell-label">FG%</div>
-        </div>
-        <div class="stat-cell">
-            <div class="stat-cell-val">{three_pct:.1%}</div>
-            <div class="stat-cell-label">3P%</div>
-        </div>
-        <div class="stat-cell" style="grid-column: span 1;">
-            <div class="stat-cell-val">{made}</div>
-            <div class="stat-cell-label">FGM</div>
-        </div>
-        <div class="stat-cell" style="grid-column: span 2;">
-            <div class="stat-cell-val">{pps:.2f}</div>
-            <div class="stat-cell-label">Pts / Shot</div>
+    <div class="panel">
+        <div class="stat-grid">
+            <div class="stat-cell">
+                <div class="stat-cell-val">{total}</div>
+                <div class="stat-cell-label">FGA</div>
+            </div>
+            <div class="stat-cell">
+                <div class="stat-cell-val">{pct:.1%}</div>
+                <div class="stat-cell-label">FG%</div>
+            </div>
+            <div class="stat-cell">
+                <div class="stat-cell-val">{three_pct:.1%}</div>
+                <div class="stat-cell-label">3P%</div>
+            </div>
+            <div class="stat-cell" style="grid-column: span 1;">
+                <div class="stat-cell-val">{made}</div>
+                <div class="stat-cell-label">FGM</div>
+            </div>
+            <div class="stat-cell" style="grid-column: span 2;">
+                <div class="stat-cell-val">{pps:.2f}</div>
+                <div class="stat-cell-label">Pts / Shot</div>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -936,9 +938,7 @@ def render_stage(df_in, theme, pid, tid):
 
     with col_panel:
         # Stats
-        st.markdown("<div class='panel'>", unsafe_allow_html=True)
         render_stat_grid(df)
-        st.markdown("</div>", unsafe_allow_html=True)
 
         # Zone breakdown
         render_zone_grid(df, theme[0])
