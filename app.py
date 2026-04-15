@@ -477,7 +477,7 @@ with st.sidebar:
     st.text_input("Command", placeholder="e.g. Tatum vs Lakers...", key="command_input", on_change=process_command, label_visibility="collapsed")
     
     st.markdown("<div class='sidebar-label'>Compare Mode</div>", unsafe_allow_html=True)
-    st.session_state.compare_mode = st.toggle("Compare Players or Teams", st.session_state.compare_mode)
+    st.session_state.compare_mode = st.toggle("Compare Players", st.session_state.compare_mode)
 
     c_mode = st.session_state.compare_mode
     
@@ -552,7 +552,12 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
 
     st.markdown(f"""
     <div class="panel" style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
-        <img src="{img_url}" style="width:72px; height:72px; border-radius:50%; border:2px solid {theme[0]}; object-fit:contain; background:rgba(0,0,0,0.3); padding:5px; box-shadow: 0 0 28px {hex_to_rgba(theme[0], 0.3)}; flex-shrink:0;">
+        <img src="{img_url}" style="
+            height:110px; width:auto; max-width:140px; 
+            object-fit:contain; object-position:bottom; 
+            filter:drop-shadow(0 0 18px {hex_to_rgba(theme[0], 0.6)}); 
+            flex-shrink:0;
+        ">
         <div style="min-width:0;">
             <div class="hero-name" style="font-size:32px;">{hero_name}</div>
             <div class="hero-sub">{hero_sub}</div>
