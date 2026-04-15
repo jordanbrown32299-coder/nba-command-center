@@ -118,33 +118,46 @@ def get_roster(team_id):
 
 @st.cache_data(ttl=3600)
 def fetch_schedule(team_id, team_name):
-    try:
-        games_rs = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='Regular Season').get_data_frames()[0]
-        games_pi = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='PlayIn').get_data_frames()[0]
-        games_po = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='Playoffs').get_data_frames()[0]
-        
-        games = pd.concat([games_rs, games_pi, games_po], ignore_index=True)
-        games['GAME_DATE'] = pd.to_datetime(games['GAME_DATE'])
-        games = games[games['GAME_DATE'] >= '2025-10-21'].sort_values('GAME_DATE').reset_index(drop=True)
-        if games.empty: return pd.DataFrame()
+    def get_season_games(stype):
+        try:
+            return leaguegamefinder.LeagueGameFinder(
+                team_id_nullable=team_id, 
+                season_nullable='2025-26', 
+                season_type_nullable=stype
+            ).get_data_frames()[0]
+        except:
+            return pd.DataFrame()
 
-        rivals = RIVALRIES.get(team_name, [])
-        def create_label(row, i):
-            date_str = row['GAME_DATE'].strftime('%b %d')
-            matchup = row['MATCHUP']
-            opp = matchup.split(' ')[-1]
-            icons = ""
-            if i == 0: icons += " 🚀"
-            if row['GAME_DATE'].month == 12 and row['GAME_DATE'].day == 25: icons += " 🎄"
-            is_cup = (row['GAME_DATE'].month == 11) or (row['GAME_DATE'].month == 12 and row['GAME_DATE'].day <= 17)
-            if is_cup and row['GAME_DATE'].weekday() in [1, 4]: icons += " 🏆"
-            if opp in rivals: icons += " 🔥"
-            return f"{date_str} {matchup}{icons}"
+    # Fetch independently so one failure doesn't crash the others
+    games_rs = get_season_games('Regular Season')
+    games_pi = get_season_games('PlayIn')
+    games_po = get_season_games('Playoffs')
+    
+    # Only combine the dataframes that actually have data
+    valid_dfs = [df for df in [games_rs, games_pi, games_po] if not df.empty]
+    if not valid_dfs: return pd.DataFrame()
+    
+    games = pd.concat(valid_dfs, ignore_index=True)
+    games['GAME_DATE'] = pd.to_datetime(games['GAME_DATE'])
+    games = games[games['GAME_DATE'] >= '2025-10-21'].sort_values('GAME_DATE').reset_index(drop=True)
+    
+    if games.empty: return pd.DataFrame()
 
-        games['Label'] = [create_label(r, i) for i, r in games.iterrows()]
-        return games
-    except:
-        return pd.DataFrame()
+    rivals = RIVALRIES.get(team_name, [])
+    def create_label(row, i):
+        date_str = row['GAME_DATE'].strftime('%b %d')
+        matchup = row['MATCHUP']
+        opp = matchup.split(' ')[-1]
+        icons = ""
+        if i == 0: icons += " 🚀"
+        if row['GAME_DATE'].month == 12 and row['GAME_DATE'].day == 25: icons += " 🎄"
+        is_cup = (row['GAME_DATE'].month == 11) or (row['GAME_DATE'].month == 12 and row['GAME_DATE'].day <= 17)
+        if is_cup and row['GAME_DATE'].weekday() in [1, 4]: icons += " 🏆"
+        if opp in rivals: icons += " 🔥"
+        return f"{date_str} {matchup}{icons}"
+
+    games['Label'] = [create_label(r, i) for i, r in games.iterrows()]
+    return games
 
 @st.cache_data(ttl=600)
 def fetch_shots(player_id, team_id, game_id=None):
@@ -160,10 +173,21 @@ def fetch_shots(player_id, team_id, game_id=None):
             df = shotchartdetail.ShotChartDetail(**params).get_data_frames()[0]
         else:
             params['season_nullable'] = '2025-26'
-            df_rs = shotchartdetail.ShotChartDetail(**params, season_type_all_star='Regular Season').get_data_frames()[0]
-            df_pi = shotchartdetail.ShotChartDetail(**params, season_type_all_star='PlayIn').get_data_frames()[0]
-            df_po = shotchartdetail.ShotChartDetail(**params, season_type_all_star='Playoffs').get_data_frames()[0]
-            df = pd.concat([df_rs, df_pi, df_po], ignore_index=True)
+            
+            def get_season_shots(stype):
+                try:
+                    return shotchartdetail.ShotChartDetail(**params, season_type_all_star=stype).get_data_frames()[0]
+                except:
+                    return pd.DataFrame()
+            
+            # Fetch independently
+            df_rs = get_season_shots('Regular Season')
+            df_pi = get_season_shots('PlayIn')
+            df_po = get_season_shots('Playoffs')
+            
+            valid_shots = [d for d in [df_rs, df_pi, df_po] if not d.empty]
+            if not valid_shots: return pd.DataFrame()
+            df = pd.concat(valid_shots, ignore_index=True)
 
         if df.empty: return pd.DataFrame()
         
