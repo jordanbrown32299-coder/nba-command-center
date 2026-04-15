@@ -616,7 +616,10 @@ def render_zone_grid(df, primary):
     for zone, label in zone_labels.items():
         s = stats.get(zone, {'n': 0, 'pct': 0, 'freq': 0})
         pct_str = f"{s['pct']:.0%}" if s['n'] > 0 else "—"
-        bar_w = int(s['freq'] * 100)
+        
+        # THE FIX: Base the bar width on FG% (pct) instead of Frequency (freq)
+        bar_w = int(s['pct'] * 100) if s['n'] > 0 else 0
+        
         rows_html += f"""
         <div style="margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
