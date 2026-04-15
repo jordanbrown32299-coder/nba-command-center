@@ -141,7 +141,6 @@ def fetch_shots(player_id, team_id, game_id=None):
         base_url = "https://www.nba.com/stats/events/?flag=1&sct=plot&Season=2025-26"
         df['VIDEO_URL'] = base_url + "&GameID=" + df['GAME_ID'].astype(str) + "&GameEventID=" + df['GAME_EVENT_ID'].astype(str)
         df['id'] = df.index.astype(str)
-        # Pre-compute shot zone once at fetch time
         df['Zone'] = df.apply(lambda row: get_shot_zone(row['LOC_X'], row['LOC_Y']), axis=1)
         return df
     except:
@@ -170,7 +169,6 @@ def get_shot_zone(x, y):
     return 'Mid-Range'
 
 def compute_zone_stats(df):
-    """Returns zone-level FG% and volume for the shot zone grid."""
     zones = ['Restricted Area', 'In The Paint', 'Mid-Range', 'Corner 3', 'Above the Break 3']
     stats = {}
     total = max(len(df), 1)
@@ -343,226 +341,213 @@ def draw_radar(df, color):
 def inject_css(primary, secondary):
     p_glow = hex_to_rgba(primary, 0.35)
     st.markdown(f"""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
-        :root {{
-            --primary: {primary};
-            --primary-glow: {p_glow};
-            --secondary: {secondary};
-            --bg: #080808;
-            --surface: rgba(18,18,18,0.85);
-            --border: rgba(255,255,255,0.07);
-            --text-dim: rgba(255,255,255,0.45);
-            --text-mid: rgba(255,255,255,0.7);
-        }}
+    :root {{
+        --primary: {primary};
+        --primary-glow: {p_glow};
+        --secondary: {secondary};
+        --bg: #080808;
+        --surface: rgba(18,18,18,0.85);
+        --border: rgba(255,255,255,0.07);
+        --text-dim: rgba(255,255,255,0.45);
+        --text-mid: rgba(255,255,255,0.7);
+    }}
 
-        /* Base */
-        .stApp {{
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(ellipse 80% 50% at 50% -10%, {hex_to_rgba(primary, 0.12)} 0%, transparent 70%),
-                linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
-            font-family: 'DM Sans', sans-serif;
-            color: #fff;
-        }}
+    .stApp {{
+        background-color: var(--bg);
+        background-image:
+            radial-gradient(ellipse 80% 50% at 50% -10%, {hex_to_rgba(primary, 0.12)} 0%, transparent 70%),
+            linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+        font-family: 'DM Sans', sans-serif;
+        color: #fff;
+    }}
 
-        /* Sidebar */
-        section[data-testid="stSidebar"] {{
-            background: rgba(6,6,6,0.95) !important;
-            border-right: 1px solid var(--border);
-        }}
-        section[data-testid="stSidebar"] > div {{
-            padding-top: 1.5rem;
-        }}
+    section[data-testid="stSidebar"] {{
+        background: rgba(6,6,6,0.95) !important;
+        border-right: 1px solid var(--border);
+    }}
+    section[data-testid="stSidebar"] > div {{
+        padding-top: 1.5rem;
+    }}
 
-        /* Typography */
-        h1, h2, h3 {{ font-family: 'Barlow Condensed', sans-serif !important; text-transform: uppercase; }}
+    h1, h2, h3 {{ font-family: 'Barlow Condensed', sans-serif !important; text-transform: uppercase; }}
 
-        /* Panels */
-        .panel {{
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 16px;
-            backdrop-filter: blur(12px);
-        }}
-        .panel-accent {{
-            border-color: {hex_to_rgba(primary, 0.4)};
-            box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)};
-        }}
+    .panel {{
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
+        backdrop-filter: blur(12px);
+    }}
+    .panel-accent {{
+        border-color: {hex_to_rgba(primary, 0.4)};
+        box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)};
+    }}
 
-        /* Stat cells */
-        .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }}
-        .stat-cell {{
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 14px 12px;
-            text-align: center;
-        }}
-        .stat-cell-val {{
-            font-family: 'DM Mono', monospace;
-            font-size: 26px;
-            font-weight: 500;
-            color: {primary};
-            line-height: 1;
-            text-shadow: 0 0 16px {p_glow};
-        }}
-        .stat-cell-label {{
-            font-family: 'DM Mono', monospace;
-            font-size: 9px;
-            letter-spacing: 1.5px;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            margin-top: 4px;
-        }}
+    .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }}
+    .stat-cell {{
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 12px;
+        text-align: center;
+    }}
+    .stat-cell-val {{
+        font-family: 'DM Mono', monospace;
+        font-size: 26px;
+        font-weight: 500;
+        color: {primary};
+        line-height: 1;
+        text-shadow: 0 0 16px {p_glow};
+    }}
+    .stat-cell-label {{
+        font-family: 'DM Mono', monospace;
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        margin-top: 4px;
+    }}
 
-        /* Zone grid */
-        .zone-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
-        .zone-row {{
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px 12px;
-            font-family: 'DM Mono', monospace;
-            font-size: 10px;
-        }}
-        .zone-name {{ color: var(--text-mid); font-size: 9px; letter-spacing: 0.5px; }}
-        .zone-pct {{ color: {primary}; font-weight: 500; }}
-        .zone-bar-wrap {{
-            width: 100%; height: 2px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 2px; margin-top: 4px;
-        }}
-        .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
+    .zone-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
+    .zone-row {{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-family: 'DM Mono', monospace;
+        font-size: 10px;
+    }}
+    .zone-name {{ color: var(--text-mid); font-size: 9px; letter-spacing: 0.5px; }}
+    .zone-pct {{ color: {primary}; font-weight: 500; }}
+    .zone-bar-wrap {{
+        width: 100%; height: 2px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 2px; margin-top: 4px;
+    }}
+    .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
 
-        /* Badge */
-        .badge {{
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 3px 9px; border-radius: 4px;
-            font-family: 'DM Mono', monospace;
-            font-size: 9px; font-weight: 500;
-            letter-spacing: 0.8px; text-transform: uppercase;
-            border: 1px solid rgba(255,255,255,0.08);
-        }}
+    .badge {{
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 9px; border-radius: 4px;
+        font-family: 'DM Mono', monospace;
+        font-size: 9px; font-weight: 500;
+        letter-spacing: 0.8px; text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,0.08);
+    }}
 
-        /* Insight cards */
-        .insight-card {{
-            display: flex; align-items: flex-start; gap: 12px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--border);
-            border-left: 3px solid {primary};
-            border-radius: 0 8px 8px 0;
-            padding: 12px 14px;
-            margin-bottom: 8px;
-        }}
-        .insight-icon {{ font-size: 18px; line-height: 1; }}
-        .insight-title {{
-            font-family: 'Barlow Condensed', sans-serif;
-            font-size: 13px; font-weight: 700;
-            text-transform: uppercase;
-            color: white; letter-spacing: 0.5px;
-        }}
-        .insight-body {{
-            font-size: 11px; color: var(--text-mid);
-            margin-top: 2px; line-height: 1.4;
-        }}
+    .insight-card {{
+        display: flex; align-items: flex-start; gap: 12px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-left: 3px solid {primary};
+        border-radius: 0 8px 8px 0;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+    }}
+    .insight-icon {{ font-size: 18px; line-height: 1; }}
+    .insight-title {{
+        font-family: 'Barlow Condensed', sans-serif;
+        font-size: 13px; font-weight: 700;
+        text-transform: uppercase;
+        color: white; letter-spacing: 0.5px;
+    }}
+    .insight-body {{
+        font-size: 11px; color: var(--text-mid);
+        margin-top: 2px; line-height: 1.4;
+    }}
 
-        /* Hero */
-        .hero-name {{
-            font-family: 'Barlow Condensed', sans-serif;
-            font-size: 44px; font-weight: 800;
-            text-transform: uppercase;
-            line-height: 1; color: white;
-            letter-spacing: 1px;
-        }}
-        .hero-sub {{
-            font-family: 'DM Mono', monospace;
-            font-size: 11px; color: var(--text-dim);
-            letter-spacing: 1px; margin-top: 4px;
-            text-transform: uppercase;
-        }}
+    .hero-name {{
+        font-family: 'Barlow Condensed', sans-serif;
+        font-size: 44px; font-weight: 800;
+        text-transform: uppercase;
+        line-height: 1; color: white;
+        letter-spacing: 1px;
+    }}
+    .hero-sub {{
+        font-family: 'DM Mono', monospace;
+        font-size: 11px; color: var(--text-dim);
+        letter-spacing: 1px; margin-top: 4px;
+        text-transform: uppercase;
+    }}
 
-        /* Sidebar labels */
-        .sidebar-label {{
-            font-family: 'DM Mono', monospace;
-            font-size: 9px; letter-spacing: 2px;
-            color: var(--text-dim); text-transform: uppercase;
-            margin: 16px 0 6px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid var(--border);
-        }}
+    .sidebar-label {{
+        font-family: 'DM Mono', monospace;
+        font-size: 9px; letter-spacing: 2px;
+        color: var(--text-dim); text-transform: uppercase;
+        margin: 16px 0 6px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+    }}
 
-        /* Clutch pill */
-        .clutch-pill {{
-            text-align: center;
-            font-family: 'DM Mono', monospace;
-            font-size: 9px; color: #FF453A;
-            background: rgba(255,69,58,0.12);
-            border: 1px solid rgba(255,69,58,0.3);
-            border-radius: 4px;
-            padding: 4px 10px;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-top: -8px; margin-bottom: 10px;
-        }}
+    .clutch-pill {{
+        text-align: center;
+        font-family: 'DM Mono', monospace;
+        font-size: 9px; color: #FF453A;
+        background: rgba(255,69,58,0.12);
+        border: 1px solid rgba(255,69,58,0.3);
+        border-radius: 4px;
+        padding: 4px 10px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-top: -8px; margin-bottom: 10px;
+    }}
 
-        /* Streamlit overrides */
-        div[data-baseweb="select"] > div,
-        .stTextInput > div > div {{
-            background: rgba(15,15,15,0.6) !important;
-            border-color: var(--border) !important;
-            color: white !important;
-            font-family: 'DM Mono', monospace;
-            font-size: 12px;
-            border-radius: 6px !important;
-        }}
-        .stSlider > div > div > div > div {{ background: {primary} !important; }}
-        .stButton > button {{
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--border);
-            color: white;
-            font-family: 'DM Mono', monospace;
-            font-size: 11px;
-            letter-spacing: 1px;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }}
-        .stButton > button:hover {{
-            background: {hex_to_rgba(primary, 0.15)};
-            border-color: {hex_to_rgba(primary, 0.5)};
-            color: white;
-        }}
-        .stLinkButton > a {{
-            background: {primary} !important;
-            color: #000 !important;
-            font-family: 'DM Mono', monospace;
-            font-size: 11px;
-            letter-spacing: 1px;
-            border-radius: 6px;
-            font-weight: 700;
-        }}
-        /* Section dividers */
-        .section-divider {{
-            display: flex; align-items: center; gap: 10px;
-            margin: 20px 0 12px;
-        }}
-        .section-divider-line {{
-            flex: 1; height: 1px; background: var(--border);
-        }}
-        .section-divider-label {{
-            font-family: 'DM Mono', monospace;
-            font-size: 9px; letter-spacing: 2px;
-            color: var(--text-dim); text-transform: uppercase;
-            white-space: nowrap;
-        }}
-    </style>
-    """, unsafe_allow_html=True)
+    div[data-baseweb="select"] > div,
+    .stTextInput > div > div {{
+        background: rgba(15,15,15,0.6) !important;
+        border-color: var(--border) !important;
+        color: white !important;
+        font-family: 'DM Mono', monospace;
+        font-size: 12px;
+        border-radius: 6px !important;
+    }}
+    .stSlider > div > div > div > div {{ background: {primary} !important; }}
+    .stButton > button {{
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        color: white;
+        font-family: 'DM Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1px;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }}
+    .stButton > button:hover {{
+        background: {hex_to_rgba(primary, 0.15)};
+        border-color: {hex_to_rgba(primary, 0.5)};
+        color: white;
+    }}
+    .stLinkButton > a {{
+        background: {primary} !important;
+        color: #000 !important;
+        font-family: 'DM Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1px;
+        border-radius: 6px;
+        font-weight: 700;
+    }}
+    .section-divider {{
+        display: flex; align-items: center; gap: 10px;
+        margin: 20px 0 12px;
+    }}
+    .section-divider-line {{
+        flex: 1; height: 1px; background: var(--border);
+    }}
+    .section-divider-label {{
+        font-family: 'DM Mono', monospace;
+        font-size: 9px; letter-spacing: 2px;
+        color: var(--text-dim); text-transform: uppercase;
+        white-space: nowrap;
+    }}
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # 7. HELPER RENDERERS
@@ -576,31 +561,31 @@ def render_stat_grid(df):
     three_pct = threes['SHOT_MADE_FLAG'].mean() if len(threes) > 0 else 0
     pps = ((made * 2) + threes['SHOT_MADE_FLAG'].sum()) / total if total else 0
     st.markdown(f"""
-    <div class="panel">
-        <div class="stat-grid">
-            <div class="stat-cell">
-                <div class="stat-cell-val">{total}</div>
-                <div class="stat-cell-label">FGA</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-cell-val">{pct:.1%}</div>
-                <div class="stat-cell-label">FG%</div>
-            </div>
-            <div class="stat-cell">
-                <div class="stat-cell-val">{three_pct:.1%}</div>
-                <div class="stat-cell-label">3P%</div>
-            </div>
-            <div class="stat-cell" style="grid-column: span 1;">
-                <div class="stat-cell-val">{made}</div>
-                <div class="stat-cell-label">FGM</div>
-            </div>
-            <div class="stat-cell" style="grid-column: span 2;">
-                <div class="stat-cell-val">{pps:.2f}</div>
-                <div class="stat-cell-label">Pts / Shot</div>
-            </div>
+<div class="panel">
+    <div class="stat-grid">
+        <div class="stat-cell">
+            <div class="stat-cell-val">{total}</div>
+            <div class="stat-cell-label">FGA</div>
+        </div>
+        <div class="stat-cell">
+            <div class="stat-cell-val">{pct:.1%}</div>
+            <div class="stat-cell-label">FG%</div>
+        </div>
+        <div class="stat-cell">
+            <div class="stat-cell-val">{three_pct:.1%}</div>
+            <div class="stat-cell-label">3P%</div>
+        </div>
+        <div class="stat-cell" style="grid-column: span 1;">
+            <div class="stat-cell-val">{made}</div>
+            <div class="stat-cell-label">FGM</div>
+        </div>
+        <div class="stat-cell" style="grid-column: span 2;">
+            <div class="stat-cell-val">{pps:.2f}</div>
+            <div class="stat-cell-label">Pts / Shot</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
 def render_zone_grid(df, primary):
     if df.empty: return
@@ -616,78 +601,76 @@ def render_zone_grid(df, primary):
     for zone, label in zone_labels.items():
         s = stats.get(zone, {'n': 0, 'pct': 0, 'freq': 0})
         pct_str = f"{s['pct']:.0%}" if s['n'] > 0 else "—"
-        
-        # THE FIX: Base the bar width on FG% (pct) instead of Frequency (freq)
         bar_w = int(s['pct'] * 100) if s['n'] > 0 else 0
         
         rows_html += f"""
-        <div style="margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                <span class="zone-name">{label}</span>
-                <span style="font-family:'DM Mono',monospace; font-size:10px; color:var(--text-mid);">
-                    <span class="zone-pct">{pct_str}</span>
-                    <span style="color:var(--text-dim); margin-left:6px;">{s['n']} att</span>
-                </span>
-            </div>
-            <div class="zone-bar-wrap">
-                <div class="zone-bar" style="width:{bar_w}%;"></div>
-            </div>
-        </div>
-        """
-    st.markdown(f"""
-    <div class="panel" style="margin-top:0;">
-        <div class="sidebar-label" style="margin-top:0;">Zone Breakdown</div>
-        {rows_html}
+<div style="margin-bottom:8px;">
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span class="zone-name">{label}</span>
+        <span style="font-family:'DM Mono',monospace; font-size:10px; color:var(--text-mid);">
+            <span class="zone-pct">{pct_str}</span>
+            <span style="color:var(--text-dim); margin-left:6px;">{s['n']} att</span>
+        </span>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="zone-bar-wrap">
+        <div class="zone-bar" style="width:{bar_w}%;"></div>
+    </div>
+</div>
+"""
+    st.markdown(f"""
+<div class="panel" style="margin-top:0;">
+    <div class="sidebar-label" style="margin-top:0;">Zone Breakdown</div>
+    {rows_html}
+</div>
+""", unsafe_allow_html=True)
 
 def render_insights(df, is_team, primary):
     insights = generate_insights(df, is_team)
     cards = ""
     for icon, title, body in insights:
         cards += f"""
-        <div class="insight-card">
-            <div class="insight-icon">{icon}</div>
-            <div>
-                <div class="insight-title">{title}</div>
-                <div class="insight-body">{body}</div>
-            </div>
-        </div>
-        """
-    st.markdown(f"""
-    <div class="panel">
-        <div class="sidebar-label" style="margin-top:0;">Scouting Report</div>
-        {cards}
+<div class="insight-card">
+    <div class="insight-icon">{icon}</div>
+    <div>
+        <div class="insight-title">{title}</div>
+        <div class="insight-body">{body}</div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+"""
+    st.markdown(f"""
+<div class="panel">
+    <div class="sidebar-label" style="margin-top:0;">Scouting Report</div>
+    {cards}
+</div>
+""", unsafe_allow_html=True)
 
 def render_replay_panel(selected_shot, primary):
     if not selected_shot:
-        st.markdown("""
-        <div class="panel" style="height:160px; display:flex; align-items:center; justify-content:center;
-            border-style:dashed; border-color:rgba(255,255,255,0.1);">
-            <div style="text-align:center; color:rgba(255,255,255,0.25);">
-                <div style="font-size:22px; margin-bottom:8px;">↑</div>
-                <div style="font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px;">
-                    CLICK A SHOT
-                </div>
-            </div>
+        st.markdown(f"""
+<div class="panel" style="height:160px; display:flex; align-items:center; justify-content:center;
+    border-style:dashed; border-color:rgba(255,255,255,0.1);">
+    <div style="text-align:center; color:rgba(255,255,255,0.25);">
+        <div style="font-size:22px; margin-bottom:8px;">↑</div>
+        <div style="font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px;">
+            CLICK A SHOT
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+</div>
+""", unsafe_allow_html=True)
         return
     s = selected_shot
     st.markdown(f"""
-    <div class="panel panel-accent">
-        <div style="font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px;
-            color:var(--text-dim); text-transform:uppercase; margin-bottom:10px;">Replay Center</div>
-        <div style="font-family:'Barlow Condensed',sans-serif; font-size:22px;
-            font-weight:700; text-transform:uppercase; color:white;">{s['action']}</div>
-        <div style="font-family:'DM Mono',monospace; font-size:11px;
-            color:var(--text-mid); margin-top:4px; margin-bottom:16px;">
-            {s['distance']} FT &nbsp;·&nbsp; Q{s['period']}
-        </div>
+<div class="panel panel-accent">
+    <div style="font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px;
+        color:var(--text-dim); text-transform:uppercase; margin-bottom:10px;">Replay Center</div>
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:22px;
+        font-weight:700; text-transform:uppercase; color:white;">{s['action']}</div>
+    <div style="font-family:'DM Mono',monospace; font-size:11px;
+        color:var(--text-mid); margin-top:4px; margin-bottom:16px;">
+        {s['distance']} FT &nbsp;·&nbsp; Q{s['period']}
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
     st.link_button("▶ WATCH FILM", s['url'], use_container_width=True)
 
 # ==========================================
@@ -696,15 +679,15 @@ def render_replay_panel(selected_shot, primary):
 teams_map = get_teams_map()
 
 with st.sidebar:
-    st.markdown("""
-    <div style="font-family:'Barlow Condensed',sans-serif; font-size:22px;
-        font-weight:800; text-transform:uppercase; color:white; letter-spacing:1px;
-        margin-bottom:16px;">
-        NBA Shot Lab
-        <span style="font-family:'DM Mono',monospace; font-size:10px;
-            color:rgba(255,255,255,0.3); vertical-align:middle; margin-left:6px;">v5</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""
+<div style="font-family:'Barlow Condensed',sans-serif; font-size:22px;
+    font-weight:800; text-transform:uppercase; color:white; letter-spacing:1px;
+    margin-bottom:16px;">
+    NBA Shot Lab
+    <span style="font-family:'DM Mono',monospace; font-size:10px;
+        color:rgba(255,255,255,0.3); vertical-align:middle; margin-left:6px;">v5</span>
+</div>
+""", unsafe_allow_html=True)
 
     st.text_input(
         "Command", placeholder="e.g. Tatum vs Lakers, show dunks...",
@@ -720,7 +703,6 @@ with st.sidebar:
     team_id = teams_map[team_name]
     current_theme = TEAM_THEMES.get(team_name, DEFAULT_THEME)
 
-    # Inject CSS once with current theme
     inject_css(current_theme[0], current_theme[1])
 
     st.markdown("<div class='sidebar-label'>Player</div>", unsafe_allow_html=True)
@@ -735,7 +717,6 @@ with st.sidebar:
     )
     player_id = roster.get(player_name, 0)
 
-    # Clutch toggle
     st.markdown("<div class='sidebar-label'>Mode</div>", unsafe_allow_html=True)
     if st.button("⏱ Clutch Time" + (" [ON]" if st.session_state.clutch_mode else ""), use_container_width=True):
         st.session_state.clutch_mode = not st.session_state.clutch_mode
@@ -743,10 +724,8 @@ with st.sidebar:
     if st.session_state.clutch_mode:
         st.markdown("<div class='clutch-pill'>Active · Q4 / OT Only</div>", unsafe_allow_html=True)
 
-    # Fetch base data once
     base_df = fetch_shots(player_id, team_id, game_id=None)
 
-    # The Bag
     st.markdown("<div class='sidebar-label'>The Bag</div>", unsafe_allow_html=True)
     available_actions = sorted(base_df['ACTION_TYPE'].unique().tolist()) if not base_df.empty else []
     bag_filters = st.multiselect(
@@ -756,15 +735,14 @@ with st.sidebar:
     )
     st.session_state.bag_pick = bag_filters
 
-    # Radar DNA
     if not base_df.empty:
-        st.markdown("""
-        <div class="section-divider">
-            <div class="section-divider-line"></div>
-            <div class="section-divider-label">Playstyle DNA</div>
-            <div class="section-divider-line"></div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""
+<div class="section-divider">
+    <div class="section-divider-line"></div>
+    <div class="section-divider-label">Playstyle DNA</div>
+    <div class="section-divider-line"></div>
+</div>
+""", unsafe_allow_html=True)
         dna_fig = draw_radar(base_df, current_theme[0])
         st.plotly_chart(dna_fig, use_container_width=True, config={'displayModeBar': False})
 
@@ -779,13 +757,13 @@ game_label_display = ""
 display_theme = current_theme
 
 if not schedule.empty:
-    st.markdown("""
-    <div class="section-divider" style="margin-top:0; margin-bottom:8px;">
-        <div class="section-divider-line"></div>
-        <div class="section-divider-label">Season Timeline</div>
-        <div class="section-divider-line"></div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""
+<div class="section-divider" style="margin-top:0; margin-bottom:8px;">
+    <div class="section-divider-line"></div>
+    <div class="section-divider-label">Season Timeline</div>
+    <div class="section-divider-line"></div>
+</div>
+""", unsafe_allow_html=True)
     slider_options = ["Full Season"] + schedule['Label'].tolist()
     if st.session_state.game_id_pick not in slider_options:
         st.session_state.game_id_pick = "Full Season"
@@ -809,10 +787,8 @@ if not schedule.empty:
             opponent_display = f"https://cdn.nba.com/logos/nba/{opp_id}/global/L/logo.svg"
             display_theme = TEAM_THEMES.get(opp_team['full_name'], DEFAULT_THEME)
 
-# Fetch main data
 df_main = fetch_shots(player_id, team_id, game_id=selected_game_id)
 
-# ---- HERO HEADER ----
 if not df_main.empty:
     if selected_game_id and opponent_display:
         img_url = opponent_display
@@ -834,23 +810,22 @@ if not df_main.empty:
     ])
 
     st.markdown(f"""
-    <div class="panel" style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
-        <img src="{img_url}" style="
-            width:88px; height:88px; border-radius:50%;
-            border:2px solid {display_theme[0]};
-            object-fit:contain; background:rgba(0,0,0,0.3); padding:5px;
-            box-shadow: 0 0 28px {hex_to_rgba(display_theme[0], 0.3)};
-            flex-shrink:0;
-        ">
-        <div style="min-width:0;">
-            <div class="hero-name">{hero_name}</div>
-            <div class="hero-sub">{hero_sub}</div>
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">{badge_html}</div>
-        </div>
+<div class="panel" style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
+    <img src="{img_url}" style="
+        width:88px; height:88px; border-radius:50%;
+        border:2px solid {display_theme[0]};
+        object-fit:contain; background:rgba(0,0,0,0.3); padding:5px;
+        box-shadow: 0 0 28px {hex_to_rgba(display_theme[0], 0.3)};
+        flex-shrink:0;
+    ">
+    <div style="min-width:0;">
+        <div class="hero-name">{hero_name}</div>
+        <div class="hero-sub">{hero_sub}</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">{badge_html}</div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-# ---- STAGE ----
 @st.fragment
 def render_stage(df_in, theme, pid, tid):
     col_f1, col_f2 = st.columns(2)
@@ -940,28 +915,21 @@ def render_stage(df_in, theme, pid, tid):
                     pass
 
     with col_panel:
-        # Stats
         render_stat_grid(df)
-
-        # Zone breakdown
         render_zone_grid(df, theme[0])
-
-        # Insights
         render_insights(df, is_team=(pid == 0), primary=theme[0])
-
-        # Replay
         render_replay_panel(st.session_state.selected_shot, theme[0])
 
 if not df_main.empty:
     render_stage(df_main, display_theme, player_id, team_id)
 else:
-    st.markdown("""
-    <div class="panel" style="text-align:center; padding:60px 20px; border-style:dashed; border-color:rgba(255,255,255,0.08);">
-        <div style="font-family:'Barlow Condensed',sans-serif; font-size:28px; text-transform:uppercase; color:rgba(255,255,255,0.2);">
-            No Shot Data
-        </div>
-        <div style="font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.15); margin-top:8px;">
-            Select a team or player to begin
-        </div>
+    st.markdown(f"""
+<div class="panel" style="text-align:center; padding:60px 20px; border-style:dashed; border-color:rgba(255,255,255,0.08);">
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:28px; text-transform:uppercase; color:rgba(255,255,255,0.2);">
+        No Shot Data
     </div>
-    """, unsafe_allow_html=True)
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.15); margin-top:8px;">
+        Select a team or player to begin
+    </div>
+</div>
+""", unsafe_allow_html=True)
