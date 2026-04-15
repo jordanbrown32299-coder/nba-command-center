@@ -477,7 +477,7 @@ with st.sidebar:
     st.text_input("Command", placeholder="e.g. Tatum vs Lakers...", key="command_input", on_change=process_command, label_visibility="collapsed")
     
     st.markdown("<div class='sidebar-label'>Compare Mode</div>", unsafe_allow_html=True)
-    st.session_state.compare_mode = st.toggle("Compare Players", st.session_state.compare_mode)
+    st.session_state.compare_mode = st.toggle("Compare Players or Teams", st.session_state.compare_mode)
 
     st.markdown("<div class='sidebar-label'>Player A Team</div>", unsafe_allow_html=True)
     team_name = st.selectbox("Team A", sorted(teams_map.keys()), index=sorted(teams_map.keys()).index(st.session_state.team_pick), label_visibility="collapsed", key="team_pick", on_change=on_team_change)
