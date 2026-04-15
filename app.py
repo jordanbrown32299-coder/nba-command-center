@@ -636,7 +636,7 @@ def render_zone_grid(df, primary):
         'In The Paint': 'Paint',
         'Mid-Range': 'Mid-Range',
         'Corner 3': 'Corner 3',
-        'Above the Break 3': 'ATB 3'
+        'Above the Break 3': 'Above the Break 3'
     }
     rows_html = ""
     for zone, label in zone_labels.items():
