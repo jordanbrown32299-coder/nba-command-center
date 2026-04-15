@@ -583,6 +583,10 @@ def inject_css(primary, secondary):
         color: var(--text-dim); text-transform: uppercase;
         white-space: nowrap;
     }}
+    
+    /* Enhance radio button visibility */
+    div[role="radiogroup"] {{ margin-top: 8px; }}
+    div[role="radiogroup"] label {{ margin-right: 16px; font-size: 12px; color: var(--text-mid); }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -886,9 +890,9 @@ if not df_main.empty:
 def render_stage(df_in, theme, pid, tid):
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        outcome = st.selectbox("Result", ["All", "Made", "Missed"], label_visibility="collapsed")
+        outcome = st.radio("Result", ["All", "Made", "Missed"], horizontal=True)
     with col_f2:
-        s_type = st.selectbox("Shot Type", ["All", "2PT", "3PT"], label_visibility="collapsed")
+        s_type = st.radio("Shot Type", ["All", "2PT", "3PT"], horizontal=True)
 
     shot_type_api = {"All": "All", "2PT": "2PT Field Goal", "3PT": "3PT Field Goal"}[s_type]
     df = filter_shots(df_in, st.session_state.clutch_mode, shot_type_api, outcome, st.session_state.bag_pick)
