@@ -226,27 +226,27 @@ def generate_badges(df, is_team=False):
 
     if is_team:
         if total > 0 and (len(threes) / total) >= 0.40:
-            badges.append({'icon': '☔', 'name': 'Rainmakers', 'bg': 'rgba(94,92,230,0.18)', 'color': '#BF5AF2'})
+            badges.append({'icon': '☔', 'name': 'Rainmakers', 'bg': 'rgba(94,92,230,0.18)', 'color': '#BF5AF2', 'desc': '40%+ of all shot attempts are from 3-point range'})
         if total > 0 and (len(paint) / total) >= 0.45:
-            badges.append({'icon': '🏰', 'name': 'Paint Beasts', 'bg': 'rgba(255,59,48,0.18)', 'color': '#FF3B30'})
+            badges.append({'icon': '🏰', 'name': 'Paint Beasts', 'bg': 'rgba(255,59,48,0.18)', 'color': '#FF3B30', 'desc': '45%+ of all shot attempts are in the paint'})
         if fg_pct >= 0.48:
-            badges.append({'icon': '🔥', 'name': 'High Octane', 'bg': 'rgba(255,149,0,0.18)', 'color': '#FF9500'})
+            badges.append({'icon': '🔥', 'name': 'High Octane', 'bg': 'rgba(255,149,0,0.18)', 'color': '#FF9500', 'desc': 'Shooting 48% or better from the field'})
         clutch = df[df['PERIOD'] >= 4]
         if not clutch.empty and clutch['SHOT_MADE_FLAG'].mean() >= 0.45:
-            badges.append({'icon': '⏱️', 'name': 'Clutch City', 'bg': 'rgba(52,199,89,0.18)', 'color': '#30D158'})
+            badges.append({'icon': '⏱️', 'name': 'Clutch City', 'bg': 'rgba(52,199,89,0.18)', 'color': '#30D158', 'desc': 'Shooting 45%+ in the 4th quarter or overtime'})
     else:
         if len(threes) >= 4 and threes['SHOT_MADE_FLAG'].mean() >= 0.40:
-            badges.append({'icon': '🎯', 'name': 'Sniper', 'bg': 'rgba(48,209,88,0.18)', 'color': '#30D158'})
+            badges.append({'icon': '🎯', 'name': 'Sniper', 'bg': 'rgba(48,209,88,0.18)', 'color': '#30D158', 'desc': 'Shooting 40%+ from 3-point range (min 4 attempts)'})
         ra = df[df['Zone'] == 'Restricted Area']
         if len(ra) >= 4 and ra['SHOT_MADE_FLAG'].mean() >= 0.65:
-            badges.append({'icon': '🔨', 'name': 'Finisher', 'bg': 'rgba(10,132,255,0.18)', 'color': '#0A84FF'})
+            badges.append({'icon': '🔨', 'name': 'Finisher', 'bg': 'rgba(10,132,255,0.18)', 'color': '#0A84FF', 'desc': 'Shooting 65%+ in the restricted area (min 4 attempts)'})
         mr = df[df['Zone'] == 'Mid-Range']
         if len(mr) >= 3 and mr['SHOT_MADE_FLAG'].mean() >= 0.50:
-            badges.append({'icon': '🧙', 'name': 'Mid-Range', 'bg': 'rgba(191,90,242,0.18)', 'color': '#BF5AF2'})
+            badges.append({'icon': '🧙', 'name': 'Mid-Range', 'bg': 'rgba(191,90,242,0.18)', 'color': '#BF5AF2', 'desc': 'Shooting 50%+ from mid-range (min 3 attempts)'})
         if total >= 15:
-            badges.append({'icon': '🚀', 'name': 'Volume', 'bg': 'rgba(255,159,10,0.18)', 'color': '#FF9F0A'})
+            badges.append({'icon': '🚀', 'name': 'Volume', 'bg': 'rgba(255,159,10,0.18)', 'color': '#FF9F0A', 'desc': 'High usage: 15+ total shot attempts'})
         if total >= 8 and fg_pct <= 0.35:
-            badges.append({'icon': '🧊', 'name': 'Cold', 'bg': 'rgba(100,210,255,0.18)', 'color': '#64D2FF'})
+            badges.append({'icon': '🧊', 'name': 'Cold', 'bg': 'rgba(100,210,255,0.18)', 'color': '#64D2FF', 'desc': 'Shooting 35% or worse from the field (min 8 attempts)'})
     return badges
 
 def generate_insights(df, is_team=False):
@@ -865,7 +865,7 @@ if not df_main.empty:
 
     badges = generate_badges(df_main, is_team=(player_id == 0))
     badge_html = "".join([
-        f"<span class='badge' style='background:{b['bg']}; color:{b['color']};'>{b['icon']} {b['name']}</span>"
+        f"<span class='badge' title='{b['desc']}' style='background:{b['bg']}; color:{b['color']}; cursor:help;'>{b['icon']} {b['name']}</span>"
         for b in badges
     ])
 
