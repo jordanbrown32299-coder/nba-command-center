@@ -477,21 +477,23 @@ with st.sidebar:
     st.text_input("Command", placeholder="e.g. Tatum vs Lakers...", key="command_input", on_change=process_command, label_visibility="collapsed")
     
     st.markdown("<div class='sidebar-label'>Compare Mode</div>", unsafe_allow_html=True)
-    st.session_state.compare_mode = st.toggle("Compare Players or Teams", st.session_state.compare_mode)
+    st.session_state.compare_mode = st.toggle("Compare Players", st.session_state.compare_mode)
 
-    st.markdown("<div class='sidebar-label'>Player A Team</div>", unsafe_allow_html=True)
-    team_name = st.selectbox("Team A", sorted(teams_map.keys()), index=sorted(teams_map.keys()).index(st.session_state.team_pick), label_visibility="collapsed", key="team_pick", on_change=on_team_change)
+    c_mode = st.session_state.compare_mode
+    
+    st.markdown(f"<div class='sidebar-label'>{'Player A Team' if c_mode else 'Team'}</div>", unsafe_allow_html=True)
+    team_name = st.selectbox("Team Select", sorted(teams_map.keys()), index=sorted(teams_map.keys()).index(st.session_state.team_pick), label_visibility="collapsed", key="team_pick", on_change=on_team_change)
     team_id = teams_map[team_name]
     current_theme = TEAM_THEMES.get(team_name, DEFAULT_THEME)
 
-    st.markdown("<div class='sidebar-label'>Player A</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sidebar-label'>{'Player A' if c_mode else 'Player'}</div>", unsafe_allow_html=True)
     roster = get_roster(team_id)
     player_names = ["All Players"] + sorted(list(roster.keys()))
     if st.session_state.player_pick not in player_names: st.session_state.player_pick = "All Players"
-    player_name = st.selectbox("Player A", player_names, index=player_names.index(st.session_state.player_pick), label_visibility="collapsed", key="player_pick")
+    player_name = st.selectbox("Player Select", player_names, index=player_names.index(st.session_state.player_pick), label_visibility="collapsed", key="player_pick")
     player_id = roster.get(player_name, 0)
 
-    if st.session_state.compare_mode:
+    if c_mode:
         st.markdown("<div class='sidebar-label'>Player B Team</div>", unsafe_allow_html=True)
         team_b_name = st.selectbox("Team B", sorted(teams_map.keys()), index=sorted(teams_map.keys()).index(st.session_state.team_b_pick), label_visibility="collapsed", key="team_b_pick")
         team_b_id = teams_map[team_b_name]
@@ -519,10 +521,10 @@ with st.sidebar:
 
     if not base_df.empty:
         st.markdown("<div class='section-divider'><div class='section-divider-line'></div><div class='section-divider-label'>Playstyle DNA</div><div class='section-divider-line'></div></div>", unsafe_allow_html=True)
-        if st.session_state.compare_mode: st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid);'>PLAYER A</div>", unsafe_allow_html=True)
+        if c_mode: st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid);'>PLAYER A</div>", unsafe_allow_html=True)
         st.plotly_chart(draw_radar(base_df, current_theme[0]), use_container_width=True, config={'displayModeBar': False})
     
-    if st.session_state.compare_mode:
+    if c_mode:
         base_df_b = fetch_shots(player_b_id, team_b_id, game_id=None)
         if not base_df_b.empty:
             st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid); margin-top:10px;'>PLAYER B</div>", unsafe_allow_html=True)
@@ -574,7 +576,9 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         fig.add_trace(go.Scattergl(x=miss['LOC_X'], y=miss['LOC_Y'], mode='markers', name='Miss', customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='x', size=7, color='rgba(255,255,255,0.35)', line=dict(width=1.2))))
         fig.add_trace(go.Scattergl(x=made['LOC_X'], y=made['LOC_Y'], mode='markers', name='Make', customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='circle', size=9, color=theme[0], line=dict(color='white', width=1.2), opacity=0.8)))
     
-    fig.update_layout(height=520, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
+    # Dynamic height adjustment to prevent scaling/white space issues
+    chart_height = 450 if st.session_state.compare_mode else 620
+    fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
 
     # Layout Execution
     is_compact = st.session_state.compare_mode
