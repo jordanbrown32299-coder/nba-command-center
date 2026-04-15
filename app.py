@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from nba_api.stats.static import teams
-from nba_api.stats.endpoints import shotchartdetail, commonteamroster, leaguegamefinder
+from nba_api.stats.static import teams, players
+from nba_api.stats.endpoints import shotchartdetail, commonteamroster, leaguegamefinder, commonplayerinfo
 
 # ==========================================
 # 1. CONFIGURATION & ASSETS
@@ -60,17 +60,37 @@ init_state()
 def process_command():
     query = st.session_state.command_input.lower()
     if not query: return
+    
+    # 1. Search for Teams
     for t in teams.get_teams():
         if t['full_name'].lower() in query or t['nickname'].lower() in query:
             st.session_state.team_pick = t['full_name']
             on_team_change()
             break
+            
+    # 2. Search for Players
+    for p in players.get_active_players():
+        if p['full_name'].lower() in query:
+            try:
+                info = commonplayerinfo.CommonPlayerInfo(player_id=p['id']).get_data_frames()[0]
+                team_id = info['TEAM_ID'].iloc[0]
+                team_name = next(t['full_name'] for t in teams.get_teams() if t['id'] == team_id)
+                
+                st.session_state.team_pick = team_name
+                st.session_state.player_pick = p['full_name']
+                st.session_state.game_id_pick = 'Full Season'
+                break
+            except:
+                pass
+
+    # 3. Search for Moves (Shot Types)
     bag_keywords = {
         'step back': 'Step Back Jump shot', 'dunk': 'Dunk',
         'layup': 'Layup', 'floater': 'Floating Jump shot', 'fadeaway': 'Fadeaway Jump Shot'
     }
     found = [action for word, action in bag_keywords.items() if word in query]
     if found: st.session_state.bag_pick = found
+    
     st.session_state.command_input = ""
 
 def on_team_change():
@@ -99,9 +119,11 @@ def get_roster(team_id):
 @st.cache_data(ttl=3600)
 def fetch_schedule(team_id, team_name):
     try:
-        games = leaguegamefinder.LeagueGameFinder(
-            team_id_nullable=team_id, season_nullable='2025-26'
-        ).get_data_frames()[0]
+        games_rs = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='Regular Season').get_data_frames()[0]
+        games_pi = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='PlayIn').get_data_frames()[0]
+        games_po = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, season_nullable='2025-26', season_type_nullable='Playoffs').get_data_frames()[0]
+        
+        games = pd.concat([games_rs, games_pi, games_po], ignore_index=True)
         games['GAME_DATE'] = pd.to_datetime(games['GAME_DATE'])
         games = games[games['GAME_DATE'] >= '2025-10-21'].sort_values('GAME_DATE').reset_index(drop=True)
         if games.empty: return pd.DataFrame()
@@ -132,12 +154,19 @@ def fetch_shots(player_id, team_id, game_id=None):
             'team_id': team_id,
             'context_measure_simple': 'FGA'
         }
+        
         if game_id:
             params['game_id_nullable'] = str(game_id).zfill(10)
+            df = shotchartdetail.ShotChartDetail(**params).get_data_frames()[0]
         else:
             params['season_nullable'] = '2025-26'
-        df = shotchartdetail.ShotChartDetail(**params).get_data_frames()[0]
+            df_rs = shotchartdetail.ShotChartDetail(**params, season_type_all_star='Regular Season').get_data_frames()[0]
+            df_pi = shotchartdetail.ShotChartDetail(**params, season_type_all_star='PlayIn').get_data_frames()[0]
+            df_po = shotchartdetail.ShotChartDetail(**params, season_type_all_star='Playoffs').get_data_frames()[0]
+            df = pd.concat([df_rs, df_pi, df_po], ignore_index=True)
+
         if df.empty: return pd.DataFrame()
+        
         base_url = "https://www.nba.com/stats/events/?flag=1&sct=plot&Season=2025-26"
         df['VIDEO_URL'] = base_url + "&GameID=" + df['GAME_ID'].astype(str) + "&GameEventID=" + df['GAME_EVENT_ID'].astype(str)
         df['id'] = df.index.astype(str)
