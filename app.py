@@ -477,7 +477,7 @@ with st.sidebar:
     st.text_input("Command", placeholder="e.g. Tatum vs Lakers...", key="command_input", on_change=process_command, label_visibility="collapsed")
     
     st.markdown("<div class='sidebar-label'>Compare Mode</div>", unsafe_allow_html=True)
-    st.session_state.compare_mode = st.toggle("Compare Players", st.session_state.compare_mode)
+    st.session_state.compare_mode = st.toggle("Compare Players or Teams", st.session_state.compare_mode)
 
     c_mode = st.session_state.compare_mode
     
