@@ -726,7 +726,7 @@ with st.sidebar:
 
     base_df = fetch_shots(player_id, team_id, game_id=None)
 
-    st.markdown("<div class='sidebar-label'>The Bag</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-label'>Shot Type</div>", unsafe_allow_html=True)
     available_actions = sorted(base_df['ACTION_TYPE'].unique().tolist()) if not base_df.empty else []
     bag_filters = st.multiselect(
         "Shot Actions", available_actions,
