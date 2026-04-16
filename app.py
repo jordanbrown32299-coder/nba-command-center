@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import time
+import requests
 from nba_api.stats.static import teams, players
 from nba_api.stats.endpoints import shotchartdetail, commonteamroster, leaguegamefinder, commonplayerinfo
 
@@ -100,75 +102,90 @@ def on_slider_change():
     st.session_state.game_id_pick = st.session_state.game_tape_slider
 
 # ==========================================
-# 3. DATA ENGINE
+# 3. DATA ENGINE (UPGRADED)
 # ==========================================
-@st.cache_data(ttl=86400)
+def with_retries(max_retries=3, backoff_factor=1.5):
+    """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    result = func(*args, **kwargs)
+                    # Don't cache empty results if we suspect an API failure
+                    if isinstance(result, pd.DataFrame) and result.empty and attempt < max_retries - 1:
+                        time.sleep(backoff_factor * (attempt + 1))
+                        continue
+                    return result
+                except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError, Exception) as e:
+                    if attempt == max_retries - 1:
+                        st.error("NBA API is currently experiencing high traffic. Please wait a moment and try again.")
+                        return pd.DataFrame()
+                    time.sleep(backoff_factor * (attempt + 1))
+        return wrapper
+    return decorator
+
+@st.cache_data(ttl=86400, show_spinner=False)
+@with_retries(max_retries=3)
 def get_teams_map():
     return {t['full_name']: t['id'] for t in teams.get_teams()}
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86400, show_spinner=False)
+@with_retries(max_retries=3)
 def get_roster(team_id):
-    try:
-        r = commonteamroster.CommonTeamRoster(team_id=team_id, season='2025-26').get_data_frames()[0]
-        return {row['PLAYER']: row['PLAYER_ID'] for _, row in r.iterrows()}
-    except:
-        return {}
+    r = commonteamroster.CommonTeamRoster(team_id=team_id, season='2025-26', timeout=10).get_data_frames()[0]
+    return {row['PLAYER']: row['PLAYER_ID'] for _, row in r.iterrows()}
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
+@with_retries(max_retries=3)
 def fetch_schedule(team_id, team_name):
-    try:
-        games = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id).get_data_frames()[0]
-        games['GAME_DATE'] = pd.to_datetime(games['GAME_DATE'])
-        games = games[(games['GAME_DATE'] >= '2025-10-21') & (games['GAME_DATE'] <= '2026-06-30')]
-        games = games.sort_values('GAME_DATE').reset_index(drop=True)
-        if games.empty: return pd.DataFrame()
+    games = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id, timeout=10).get_data_frames()[0]
+    games['GAME_DATE'] = pd.to_datetime(games['GAME_DATE'])
+    games = games[(games['GAME_DATE'] >= '2025-10-21') & (games['GAME_DATE'] <= '2026-06-30')]
+    games = games.sort_values('GAME_DATE').reset_index(drop=True)
+    if games.empty: return pd.DataFrame()
 
-        rivals = RIVALRIES.get(team_name, [])
-        def create_label(row, i):
-            date_str = row['GAME_DATE'].strftime('%b %d')
-            matchup = row['MATCHUP']
-            opp = matchup.split(' ')[-1]
-            icons = ""
-            if i == 0: icons += " 🚀"
-            if row['GAME_DATE'].month == 12 and row['GAME_DATE'].day == 25: icons += " 🎄"
-            is_cup = (row['GAME_DATE'].month == 11) or (row['GAME_DATE'].month == 12 and row['GAME_DATE'].day <= 17)
-            if is_cup and row['GAME_DATE'].weekday() in [1, 4]: icons += " 🏆"
-            if opp in rivals: icons += " 🔥"
-            return f"{date_str} {matchup}{icons}"
+    rivals = RIVALRIES.get(team_name, [])
+    def create_label(row, i):
+        date_str = row['GAME_DATE'].strftime('%b %d')
+        matchup = row['MATCHUP']
+        opp = matchup.split(' ')[-1]
+        icons = ""
+        if i == 0: icons += " 🚀"
+        if row['GAME_DATE'].month == 12 and row['GAME_DATE'].day == 25: icons += " 🎄"
+        is_cup = (row['GAME_DATE'].month == 11) or (row['GAME_DATE'].month == 12 and row['GAME_DATE'].day <= 17)
+        if is_cup and row['GAME_DATE'].weekday() in [1, 4]: icons += " 🏆"
+        if opp in rivals: icons += " 🔥"
+        return f"{date_str} {matchup}{icons}"
 
-        games['Label'] = [create_label(r, i) for i, r in games.iterrows()]
-        return games
-    except:
-        return pd.DataFrame()
+    games['Label'] = [create_label(r, i) for i, r in games.iterrows()]
+    return games
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=False)
+@with_retries(max_retries=4, backoff_factor=2.0)
 def fetch_shots(player_id, team_id, game_id=None):
-    try:
-        params = {'player_id': player_id or 0, 'team_id': team_id, 'context_measure_simple': 'FGA'}
-        if game_id:
-            params['game_id_nullable'] = str(game_id).zfill(10)
-            df = shotchartdetail.ShotChartDetail(**params).get_data_frames()[0]
-        else:
-            params['season_nullable'] = '2025-26'
-            def get_season_shots(stype):
-                try: return shotchartdetail.ShotChartDetail(**params, season_type_all_star=stype).get_data_frames()[0]
-                except: return pd.DataFrame()
-            
-            df_rs = get_season_shots('Regular Season')
-            df_pi = get_season_shots('PlayIn')
-            df_po = get_season_shots('Playoffs')
-            valid_shots = [d for d in [df_rs, df_pi, df_po] if not d.empty]
-            if not valid_shots: return pd.DataFrame()
-            df = pd.concat(valid_shots, ignore_index=True)
+    params = {'player_id': player_id or 0, 'team_id': team_id, 'context_measure_simple': 'FGA'}
+    if game_id:
+        params['game_id_nullable'] = str(game_id).zfill(10)
+        df = shotchartdetail.ShotChartDetail(**params, timeout=15).get_data_frames()[0]
+    else:
+        params['season_nullable'] = '2025-26'
+        def get_season_shots(stype):
+            try: return shotchartdetail.ShotChartDetail(**params, season_type_all_star=stype, timeout=15).get_data_frames()[0]
+            except: return pd.DataFrame()
+        
+        df_rs = get_season_shots('Regular Season')
+        df_pi = get_season_shots('PlayIn')
+        df_po = get_season_shots('Playoffs')
+        valid_shots = [d for d in [df_rs, df_pi, df_po] if not d.empty]
+        if not valid_shots: return pd.DataFrame()
+        df = pd.concat(valid_shots, ignore_index=True)
 
-        if df.empty: return pd.DataFrame()
-        base_url = "https://www.nba.com/stats/events/?flag=1&sct=plot&Season=2025-26"
-        df['VIDEO_URL'] = base_url + "&GameID=" + df['GAME_ID'].astype(str) + "&GameEventID=" + df['GAME_EVENT_ID'].astype(str)
-        df['id'] = df.index.astype(str)
-        df['Zone'] = df.apply(lambda row: get_shot_zone(row['LOC_X'], row['LOC_Y']), axis=1)
-        return df
-    except:
-        return pd.DataFrame()
+    if df.empty: return pd.DataFrame()
+    base_url = "https://www.nba.com/stats/events/?flag=1&sct=plot&Season=2025-26"
+    df['VIDEO_URL'] = base_url + "&GameID=" + df['GAME_ID'].astype(str) + "&GameEventID=" + df['GAME_EVENT_ID'].astype(str)
+    df['id'] = df.index.astype(str)
+    df['Zone'] = df.apply(lambda row: get_shot_zone(row['LOC_X'], row['LOC_Y']), axis=1)
+    return df
 
 def filter_shots(df, is_clutch, shot_type, outcome, bag_filters):
     if df.empty: return df
