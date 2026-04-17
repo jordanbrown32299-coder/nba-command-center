@@ -404,13 +404,12 @@ def inject_css(primary):
 
     .stat-cell-val {{ 
         font-family: 'DM Mono', monospace; 
-        font-size: 21px; /* Scaled down slightly to fit full decimal */
+        font-size: 21px; 
         font-weight: 500; 
         color: {primary}; 
         line-height: 1; 
         text-shadow: 0 0 16px {p_glow};
         white-space: nowrap;
-        /* Removed overflow rules so numbers never truncate visually */
     }}
     .stat-cell-label {{ 
         font-family: 'DM Mono', monospace; 
@@ -420,7 +419,6 @@ def inject_css(primary):
         text-transform: uppercase; 
         margin-top: 4px;
         white-space: nowrap;
-        /* Kept overflow rules here to protect long labels like Pts/Shot */
         overflow: hidden;
         text-overflow: ellipsis;
     }}
@@ -508,13 +506,25 @@ def render_insights(df, is_team, primary):
     cards = "".join([f'<div class="insight-card" style="border-left: 3px solid {primary};"><div class="insight-icon">{icon}</div><div><div class="insight-title">{title}</div><div class="insight-body">{body}</div></div></div>' for icon, title, body in insights])
     st.markdown(f'<div class="panel"><div class="sidebar-label" style="margin-top:0;">Scouting Report</div>{cards}</div>', unsafe_allow_html=True)
 
-def render_replay_panel(selected_shot, primary):
+def render_jumbotron(selected_shot, primary):
     if not selected_shot:
-        st.markdown(f'<div class="panel" style="height:160px; display:flex; align-items:center; justify-content:center; border-style:dashed; border-color:rgba(255,255,255,0.1);"><div style="text-align:center; color:rgba(255,255,255,0.25);"><div style="font-size:22px; margin-bottom:8px;">↑</div><div style="font-family:\'DM Mono\',monospace; font-size:9px; letter-spacing:2px;">CLICK A SHOT</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="panel" style="margin-bottom:12px; padding:12px; border-style:dashed; border-color:rgba(255,255,255,0.1); text-align:center;"><span style="color:rgba(255,255,255,0.25); font-family:\'DM Mono\',monospace; font-size:11px; letter-spacing:1px; text-transform:uppercase;">↑ Select a shot on the court to view game tape</span></div>', unsafe_allow_html=True)
         return
     s = selected_shot
-    st.markdown(f'<div class="panel" style="border-color:{hex_to_rgba(primary, 0.4)}; box-shadow:0 0 24px {hex_to_rgba(primary, 0.1)};"><div style="font-family:\'DM Mono\',monospace; font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; margin-bottom:10px;">Replay Center</div><div style="font-family:\'Barlow Condensed\',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; color:white;">{s["action"]}</div><div style="font-family:\'DM Mono\',monospace; font-size:11px; color:var(--text-mid); margin-top:4px; margin-bottom:16px;">{s["distance"]} FT &nbsp;·&nbsp; Q{s["period"]}</div></div>', unsafe_allow_html=True)
-    st.link_button("▶ WATCH FILM", s['url'], use_container_width=True)
+    glow = hex_to_rgba(primary, 0.4)
+    bg = hex_to_rgba(primary, 0.05)
+    st.markdown(f'''
+    <div class="panel" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-color:{glow}; background:{bg}; box-shadow:0 0 24px {hex_to_rgba(primary, 0.15)};">
+        <div>
+            <div style="font-family:\'DM Mono\',monospace; font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase;">Replay Center</div>
+            <div style="font-family:\'Barlow Condensed\',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; color:white; line-height:1.2;">{s["action"]}</div>
+            <div style="font-family:\'DM Mono\',monospace; font-size:11px; color:{primary}; margin-top:2px;">{s["distance"]} FT &nbsp;·&nbsp; Q{s["period"]}</div>
+        </div>
+        <a href="{s["url"]}" target="_blank" style="text-decoration:none; display:inline-block;">
+            <div style="background:{primary}; color:#000; font-family:\'DM Mono\',monospace; font-size:11px; font-weight:700; padding:10px 18px; border-radius:6px; letter-spacing:1px; transition:all 0.2s;">▶ WATCH FILM</div>
+        </a>
+    </div>
+    ''', unsafe_allow_html=True)
 
 # ==========================================
 # 8. SIDEBAR
@@ -634,11 +644,14 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     chart_height = 450 if st.session_state.compare_mode else 620
     fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
 
-    # Layout Execution & IMMEDIATE State Update
     is_compact = st.session_state.compare_mode
     if is_compact:
+        # Create a placeholder to hold the Jumbotron above the chart
+        jumbo_placeholder = st.empty()
+        
         event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
         
+        # Intercept and process the event instantly
         if event and event.get("selection", {}).get("points"):
             pt = event["selection"]["points"][0]
             try:
@@ -648,15 +661,22 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
                     st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
             except: pass
             
+        # Draw the Jumbotron into the placeholder using the freshest state
+        with jumbo_placeholder:
+            render_jumbotron(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
+            
         render_stat_grid(df, theme[0])
         render_zone_grid(df, theme[0])
         render_insights(df, is_team=(pid == 0), primary=theme[0])
-        render_replay_panel(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
     else:
         col_chart, col_panel = st.columns([2.5, 1])
         with col_chart:
+            # Create a placeholder to hold the Jumbotron above the chart
+            jumbo_placeholder = st.empty()
+            
             event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
             
+            # Intercept and process the event instantly
             if event and event.get("selection", {}).get("points"):
                 pt = event["selection"]["points"][0]
                 try:
@@ -665,12 +685,15 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
                         row = target.iloc[pt["point_index"]]
                         st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
                 except: pass
+                
+            # Draw the Jumbotron into the placeholder using the freshest state
+            with jumbo_placeholder:
+                render_jumbotron(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
 
         with col_panel:
             render_stat_grid(df, theme[0])
             render_zone_grid(df, theme[0])
             render_insights(df, is_team=(pid == 0), primary=theme[0])
-            render_replay_panel(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
 
 # ==========================================
 # 10. APP EXECUTION
