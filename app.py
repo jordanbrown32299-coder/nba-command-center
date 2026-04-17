@@ -389,7 +389,6 @@ def inject_css(primary):
     /* CRUSH-PROOF CSS GRID */
     .stat-grid {{ 
         display: grid; 
-        /* minmax(0, 1fr) is the magic fix that prevents columns from stretching */
         grid-template-columns: repeat(3, minmax(0, 1fr)); 
         gap: 12px; 
     }}
@@ -397,22 +396,21 @@ def inject_css(primary):
         background: rgba(255,255,255,0.03); 
         border: 1px solid var(--border); 
         border-radius: 8px; 
-        padding: 14px 6px; 
+        padding: 12px 4px; /* Tighter padding so percentages fit */
         text-align: center;
-        min-width: 0; /* Ensures box can shrink below text width */
+        min-width: 0;
     }}
     .span-2 {{ grid-column: span 2; }}
 
     .stat-cell-val {{ 
         font-family: 'DM Mono', monospace; 
-        font-size: 24px; 
+        font-size: 21px; /* Scaled down slightly to fit full decimal */
         font-weight: 500; 
         color: {primary}; 
         line-height: 1; 
         text-shadow: 0 0 16px {p_glow};
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        /* Removed overflow rules so numbers never truncate visually */
     }}
     .stat-cell-label {{ 
         font-family: 'DM Mono', monospace; 
@@ -422,6 +420,7 @@ def inject_css(primary):
         text-transform: uppercase; 
         margin-top: 4px;
         white-space: nowrap;
+        /* Kept overflow rules here to protect long labels like Pts/Shot */
         overflow: hidden;
         text-overflow: ellipsis;
     }}
