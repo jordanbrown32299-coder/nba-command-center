@@ -357,7 +357,7 @@ def draw_radar(df, color):
     return fig
 
 # ==========================================
-# 6. CSS / THEME SYSTEM
+# 6. CSS / THEME SYSTEM (UPGRADED)
 # ==========================================
 def inject_css(primary):
     p_glow = hex_to_rgba(primary, 0.35)
@@ -387,15 +387,43 @@ def inject_css(primary):
     .panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(12px); }}
     .panel-accent {{ border-color: {hex_to_rgba(primary, 0.4)}; box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)}; }}
 
-    .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }}
-    .stat-cell {{ background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 14px 12px; text-align: center; }}
+    /* New, predictable flexbox stat rows for perfect alignment */
+    .stat-grid-row {{
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+        width: 100%;
+    }}
+    /* Removes standard margin from last row */
+    .stat-grid-row:last-child {{ margin-bottom: 0; }}
+
+    .stat-cell {{
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 12px;
+        text-align: center;
+    }}
+    /* Predictable sizing: exactly one-third width */
+    .stat-cell-third {{ flex: 1; }}
+    /* Predictable sizing: exactly two-thirds width, perfect alignment for spans */
+    .stat-cell-two-third {{ flex: 2; }}
+
     .stat-cell-val {{ font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; color: {primary}; line-height: 1; text-shadow: 0 0 16px {p_glow}; }}
     .stat-cell-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; }}
 
     .zone-bar-wrap {{ width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; }}
     .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
 
-    .badge {{ display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.08); }}
+    .badge {{
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 9px; border-radius: 4px;
+        font-family: 'DM Mono', monospace;
+        font-size: 9px; font-weight: 500;
+        letter-spacing: 0.8px; text-transform: uppercase;
+        border: 1px solid rgba(255,255,255,0.08);
+        cursor: help; /* Upgraded: shows interactive tooltip on hover */
+    }}
     
     .insight-card {{ display: flex; align-items: flex-start; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-left: 3px solid {primary}; border-radius: 0 8px 8px 0; padding: 12px 14px; margin-bottom: 8px; }}
     .insight-icon {{ font-size: 18px; line-height: 1; }}
@@ -425,7 +453,7 @@ def inject_css(primary):
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 7. HELPER RENDERERS
+# 7. HELPER RENDERERS (UPGRADED)
 # ==========================================
 def render_stat_grid(df, primary):
     if df.empty: return
@@ -438,12 +466,14 @@ def render_stat_grid(df, primary):
     p_glow = hex_to_rgba(primary, 0.35)
     st.markdown(f"""
 <div class="panel">
-    <div class="stat-grid">
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{total}</div><div class="stat-cell-label">FGA</div></div>
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
-        <div class="stat-cell" style="grid-column: span 1;"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{made}</div><div class="stat-cell-label">FGM</div></div>
-        <div class="stat-cell" style="grid-column: span 2;"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div>
+    <div class="stat-grid-row">
+        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{total}</div><div class="stat-cell-label">FGA</div></div>
+        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
+        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
+    </div>
+    <div class="stat-grid-row">
+        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{made}</div><div class="stat-cell-label">FGM</div></div>
+        <div class="stat-cell stat-cell-two-third" style="display: flex; align-items: center; justify-content: center;"><div style="text-align: center;"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -486,7 +516,9 @@ def render_replay_panel(selected_shot, primary):
 # ==========================================
 # 8. SIDEBAR
 # ==========================================
-teams_map = get_teams_map()
+with_retries = with_retries(max_retries=3)
+get_teams_map_retried = with_retries(get_teams_map)
+teams_map = get_teams_map_retried()
 
 with st.sidebar:
     st.markdown(f"<div style=\"font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; text-transform:uppercase; color:white; letter-spacing:1px; margin-bottom:16px;\">NBA Shot Lab<span style=\"font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3); vertical-align:middle; margin-left:6px;\">v6</span></div>", unsafe_allow_html=True)
@@ -504,7 +536,8 @@ with st.sidebar:
     current_theme = TEAM_THEMES.get(team_name, DEFAULT_THEME)
 
     st.markdown(f"<div class='sidebar-label'>{'Player A' if c_mode else 'Player'}</div>", unsafe_allow_html=True)
-    roster = get_roster(team_id)
+    get_roster_retried = with_retries(get_roster)
+    roster = get_roster_retried(team_id)
     player_names = ["All Players"] + sorted(list(roster.keys()))
     if st.session_state.player_pick not in player_names: st.session_state.player_pick = "All Players"
     player_name = st.selectbox("Player Select", player_names, index=player_names.index(st.session_state.player_pick), label_visibility="collapsed", key="player_pick")
@@ -517,7 +550,7 @@ with st.sidebar:
         theme_b = TEAM_THEMES.get(team_b_name, DEFAULT_THEME)
         
         st.markdown("<div class='sidebar-label'>Player B</div>", unsafe_allow_html=True)
-        roster_b = get_roster(team_b_id)
+        roster_b = get_roster_retried(team_b_id)
         player_b_names = ["All Players"] + sorted(list(roster_b.keys()))
         if st.session_state.player_b_pick not in player_b_names: st.session_state.player_b_pick = "All Players"
         player_b_name = st.selectbox("Player B", player_b_names, index=player_b_names.index(st.session_state.player_b_pick), label_visibility="collapsed", key="player_b_pick")
@@ -532,7 +565,8 @@ with st.sidebar:
     if st.session_state.clutch_mode:
         st.markdown("<div class='clutch-pill'>Active · Q4 / OT Only</div>", unsafe_allow_html=True)
 
-    base_df = fetch_shots(player_id, team_id, game_id=None)
+    fetch_shots_retried = with_retries(fetch_shots)
+    base_df = fetch_shots_retried(player_id, team_id, game_id=None)
     available_actions = sorted(base_df['ACTION_TYPE'].unique().tolist()) if not base_df.empty else []
     st.session_state.bag_pick = st.multiselect("Shot Actions", available_actions, default=[a for a in st.session_state.bag_pick if a in available_actions], placeholder="All shot types...", key="bag_selector", label_visibility="collapsed")
 
@@ -542,7 +576,7 @@ with st.sidebar:
         st.plotly_chart(draw_radar(base_df, current_theme[0]), use_container_width=True, config={'displayModeBar': False})
     
     if c_mode:
-        base_df_b = fetch_shots(player_b_id, team_b_id, game_id=None)
+        base_df_b = fetch_shots_retried(player_b_id, team_b_id, game_id=None)
         if not base_df_b.empty:
             st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid); margin-top:10px;'>PLAYER B</div>", unsafe_allow_html=True)
             st.plotly_chart(draw_radar(base_df_b, theme_b[0]), use_container_width=True, config={'displayModeBar': False})
@@ -551,11 +585,12 @@ with st.sidebar:
     manual_game_id = st.text_input("Force Game ID", placeholder="e.g. 0052500001", label_visibility="collapsed")
 
 # ==========================================
-# 9. MAIN DASHBOARD RENDERER
+# 9. MAIN DASHBOARD RENDERER (UPGRADED)
 # ==========================================
 @st.fragment
 def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game, lbl_display, opp_display):
-    df_main = fetch_shots(pid, tid, game_id=sel_game)
+    fetch_shots_retried = with_retries(fetch_shots)
+    df_main = fetch_shots_retried(pid, tid, game_id=sel_game)
     if df_main.empty:
         st.markdown(f'<div class="panel" style="text-align:center; padding:60px 20px; border-style:dashed; border-color:rgba(255,255,255,0.08);"><div style="font-family:\'Barlow Condensed\',sans-serif; font-size:28px; text-transform:uppercase; color:rgba(255,255,255,0.2);">No Shot Data</div><div style="font-family:\'DM Mono\',monospace; font-size:11px; color:rgba(255,255,255,0.15); margin-top:8px;">{pname}</div></div>', unsafe_allow_html=True)
         return
@@ -565,16 +600,12 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     hero_sub = lbl_display if lbl_display else "2025–26 Season"
     
     badges = generate_badges(df_main, is_team=(pid == 0))
-    badge_html = "".join([f"<span class='badge' title='{b['desc']}' style='background:{b['bg']}; color:{b['color']}; cursor:help;'>{b['icon']} {b['name']}</span>" for b in badges])
+    # Preservation: badge HTML includes title (tooltip) and cursor:help
+    badge_html = "".join([f"<span class='badge' title='{b['desc']}' style='background:{b['bg']}; color:{b['color']};'>{b['icon']} {b['name']}</span>" for b in badges])
 
     st.markdown(f"""
     <div class="panel" style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
-        <img src="{img_url}" style="
-            height:110px; width:auto; max-width:140px; 
-            object-fit:contain; object-position:bottom; 
-            filter:drop-shadow(0 0 18px {hex_to_rgba(theme[0], 0.6)}); 
-            flex-shrink:0;
-        ">
+        <img src="{img_url}" style="width:72px; height:72px; border-radius:50%; border:2px solid {theme[0]}; object-fit:contain; background:rgba(0,0,0,0.3); padding:5px; box-shadow: 0 0 28px {hex_to_rgba(theme[0], 0.3)}; flex-shrink:0;">
         <div style="min-width:0;">
             <div class="hero-name" style="font-size:32px;">{hero_name}</div>
             <div class="hero-sub">{hero_sub}</div>
@@ -602,10 +633,22 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     chart_height = 450 if st.session_state.compare_mode else 620
     fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
 
-    # Layout Execution
+    # Layout Execution & IMMEDIATE State Update
+    # Fix double-click replay center issue by processing event before panel draw
     is_compact = st.session_state.compare_mode
     if is_compact:
         event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
+        
+        # Process the click event before drawing the panel to ensure state is fresh
+        if event and event.get("selection", {}).get("points"):
+            pt = event["selection"]["points"][0]
+            try:
+                target = made if pt["curve_number"] == 1 else miss
+                if not target.empty:
+                    row = target.iloc[pt["point_index"]]
+                    st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
+            except: pass
+            
         render_stat_grid(df, theme[0])
         render_zone_grid(df, theme[0])
         render_insights(df, is_team=(pid == 0), primary=theme[0])
@@ -614,25 +657,28 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         col_chart, col_panel = st.columns([2.5, 1])
         with col_chart:
             event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
+            
+            # Process the click event before drawing the side panel to ensure state is fresh
+            if event and event.get("selection", {}).get("points"):
+                pt = event["selection"]["points"][0]
+                try:
+                    target = made if pt["curve_number"] == 1 else miss
+                    if not target.empty:
+                        row = target.iloc[pt["point_index"]]
+                        st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
+                except: pass
+
         with col_panel:
             render_stat_grid(df, theme[0])
             render_zone_grid(df, theme[0])
             render_insights(df, is_team=(pid == 0), primary=theme[0])
             render_replay_panel(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
 
-    if event and event.get("selection", {}).get("points"):
-        pt = event["selection"]["points"][0]
-        try:
-            target = made if pt["curve_number"] == 1 else miss
-            if not target.empty:
-                row = target.iloc[pt["point_index"]]
-                st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
-        except: pass
-
 # ==========================================
 # 10. APP EXECUTION
 # ==========================================
-schedule = fetch_schedule(team_id, team_name)
+fetch_schedule_retried = with_retries(fetch_schedule)
+schedule = fetch_schedule_retried(team_id, team_name)
 selected_game_id, opponent_display, game_label_display = None, "", ""
 display_theme = current_theme
 
