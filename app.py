@@ -102,7 +102,7 @@ def on_slider_change():
     st.session_state.game_id_pick = st.session_state.game_tape_slider
 
 # ==========================================
-# 3. DATA ENGINE (UPGRADED)
+# 3. DATA ENGINE
 # ==========================================
 def with_retries(max_retries=3, backoff_factor=1.5):
     """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
@@ -111,7 +111,6 @@ def with_retries(max_retries=3, backoff_factor=1.5):
             for attempt in range(max_retries):
                 try:
                     result = func(*args, **kwargs)
-                    # Don't cache empty results if we suspect an API failure
                     if isinstance(result, pd.DataFrame) and result.empty and attempt < max_retries - 1:
                         time.sleep(backoff_factor * (attempt + 1))
                         continue
@@ -357,7 +356,7 @@ def draw_radar(df, color):
     return fig
 
 # ==========================================
-# 6. CSS / THEME SYSTEM (UPGRADED)
+# 6. CSS / THEME SYSTEM
 # ==========================================
 def inject_css(primary):
     p_glow = hex_to_rgba(primary, 0.35)
@@ -387,43 +386,50 @@ def inject_css(primary):
     .panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(12px); }}
     .panel-accent {{ border-color: {hex_to_rgba(primary, 0.4)}; box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)}; }}
 
-    /* New, predictable flexbox stat rows for perfect alignment */
-    .stat-grid-row {{
-        display: flex;
-        gap: 12px;
-        margin-bottom: 12px;
-        width: 100%;
+    /* CRUSH-PROOF CSS GRID */
+    .stat-grid {{ 
+        display: grid; 
+        /* minmax(0, 1fr) is the magic fix that prevents columns from stretching */
+        grid-template-columns: repeat(3, minmax(0, 1fr)); 
+        gap: 12px; 
     }}
-    /* Removes standard margin from last row */
-    .stat-grid-row:last-child {{ margin-bottom: 0; }}
-
-    .stat-cell {{
-        background: rgba(255,255,255,0.03);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 14px 12px;
+    .stat-cell {{ 
+        background: rgba(255,255,255,0.03); 
+        border: 1px solid var(--border); 
+        border-radius: 8px; 
+        padding: 14px 6px; 
         text-align: center;
+        min-width: 0; /* Ensures box can shrink below text width */
     }}
-    /* Predictable sizing: exactly one-third width */
-    .stat-cell-third {{ flex: 1; }}
-    /* Predictable sizing: exactly two-thirds width, perfect alignment for spans */
-    .stat-cell-two-third {{ flex: 2; }}
+    .span-2 {{ grid-column: span 2; }}
 
-    .stat-cell-val {{ font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; color: {primary}; line-height: 1; text-shadow: 0 0 16px {p_glow}; }}
-    .stat-cell-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; }}
+    .stat-cell-val {{ 
+        font-family: 'DM Mono', monospace; 
+        font-size: 24px; 
+        font-weight: 500; 
+        color: {primary}; 
+        line-height: 1; 
+        text-shadow: 0 0 16px {p_glow};
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    .stat-cell-label {{ 
+        font-family: 'DM Mono', monospace; 
+        font-size: 9px; 
+        letter-spacing: 1px; 
+        color: var(--text-dim); 
+        text-transform: uppercase; 
+        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
 
     .zone-bar-wrap {{ width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; }}
     .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
 
-    .badge {{
-        display: inline-flex; align-items: center; gap: 5px;
-        padding: 3px 9px; border-radius: 4px;
-        font-family: 'DM Mono', monospace;
-        font-size: 9px; font-weight: 500;
-        letter-spacing: 0.8px; text-transform: uppercase;
-        border: 1px solid rgba(255,255,255,0.08);
-        cursor: help; /* Upgraded: shows interactive tooltip on hover */
-    }}
+    .badge {{ display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.08); cursor: help; }}
     
     .insight-card {{ display: flex; align-items: flex-start; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-left: 3px solid {primary}; border-radius: 0 8px 8px 0; padding: 12px 14px; margin-bottom: 8px; }}
     .insight-icon {{ font-size: 18px; line-height: 1; }}
@@ -453,7 +459,7 @@ def inject_css(primary):
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 7. HELPER RENDERERS (UPGRADED)
+# 7. HELPER RENDERERS
 # ==========================================
 def render_stat_grid(df, primary):
     if df.empty: return
@@ -466,14 +472,12 @@ def render_stat_grid(df, primary):
     p_glow = hex_to_rgba(primary, 0.35)
     st.markdown(f"""
 <div class="panel">
-    <div class="stat-grid-row">
-        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{total}</div><div class="stat-cell-label">FGA</div></div>
-        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
-        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
-    </div>
-    <div class="stat-grid-row">
-        <div class="stat-cell stat-cell-third"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{made}</div><div class="stat-cell-label">FGM</div></div>
-        <div class="stat-cell stat-cell-two-third" style="display: flex; align-items: center; justify-content: center;"><div style="text-align: center;"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div></div>
+    <div class="stat-grid">
+        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{total}</div><div class="stat-cell-label">FGA</div></div>
+        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
+        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
+        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{made}</div><div class="stat-cell-label">FGM</div></div>
+        <div class="stat-cell span-2"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -585,7 +589,7 @@ with st.sidebar:
     manual_game_id = st.text_input("Force Game ID", placeholder="e.g. 0052500001", label_visibility="collapsed")
 
 # ==========================================
-# 9. MAIN DASHBOARD RENDERER (UPGRADED)
+# 9. MAIN DASHBOARD RENDERER
 # ==========================================
 @st.fragment
 def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game, lbl_display, opp_display):
@@ -600,7 +604,6 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     hero_sub = lbl_display if lbl_display else "2025–26 Season"
     
     badges = generate_badges(df_main, is_team=(pid == 0))
-    # Preservation: badge HTML includes title (tooltip) and cursor:help
     badge_html = "".join([f"<span class='badge' title='{b['desc']}' style='background:{b['bg']}; color:{b['color']};'>{b['icon']} {b['name']}</span>" for b in badges])
 
     st.markdown(f"""
@@ -629,17 +632,14 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         fig.add_trace(go.Scattergl(x=miss['LOC_X'], y=miss['LOC_Y'], mode='markers', name='Miss', customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='x', size=7, color='rgba(255,255,255,0.35)', line=dict(width=1.2))))
         fig.add_trace(go.Scattergl(x=made['LOC_X'], y=made['LOC_Y'], mode='markers', name='Make', customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='circle', size=9, color=theme[0], line=dict(color='white', width=1.2), opacity=0.8)))
     
-    # Dynamic height adjustment to prevent scaling/white space issues
     chart_height = 450 if st.session_state.compare_mode else 620
     fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
 
     # Layout Execution & IMMEDIATE State Update
-    # Fix double-click replay center issue by processing event before panel draw
     is_compact = st.session_state.compare_mode
     if is_compact:
         event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
         
-        # Process the click event before drawing the panel to ensure state is fresh
         if event and event.get("selection", {}).get("points"):
             pt = event["selection"]["points"][0]
             try:
@@ -658,7 +658,6 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         with col_chart:
             event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
             
-            # Process the click event before drawing the side panel to ensure state is fresh
             if event and event.get("selection", {}).get("points"):
                 pt = event["selection"]["points"][0]
                 try:
