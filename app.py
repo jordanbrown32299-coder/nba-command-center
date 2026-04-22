@@ -50,7 +50,7 @@ RIVALRIES = {
 def init_state():
     defaults = {
         'selected_shot_A': None, 'selected_shot_B': None,
-        'clutch_mode': False, 'compare_mode': False,
+        'clutch_mode': False, 'compare_mode': False, 'arcade_mode': False,
         'team_pick': 'Boston Celtics', 'player_pick': 'All Players',
         'team_b_pick': 'Los Angeles Lakers', 'player_b_pick': 'All Players',
         'game_id_pick': 'Full Season', 'bag_pick': []
@@ -105,7 +105,6 @@ def on_slider_change():
 # 3. DATA ENGINE
 # ==========================================
 def with_retries(max_retries=3, backoff_factor=1.5):
-    """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
     def decorator(func):
         def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
@@ -166,19 +165,16 @@ def fetch_shots(player_id, team_id, game_id=None):
     if game_id:
         game_id_str = str(game_id).zfill(10)
         params['game_id_nullable'] = game_id_str
-        
         prefix = game_id_str[:3]
         if prefix == '004': params['season_type_all_star'] = 'Playoffs'
         elif prefix == '005': params['season_type_all_star'] = 'PlayIn'
         else: params['season_type_all_star'] = 'Regular Season'
-            
         df = shotchartdetail.ShotChartDetail(**params, timeout=15).get_data_frames()[0]
     else:
         params['season_nullable'] = '2025-26'
         def get_season_shots(stype):
             try: return shotchartdetail.ShotChartDetail(**params, season_type_all_star=stype, timeout=15).get_data_frames()[0]
             except: return pd.DataFrame()
-        
         df_rs = get_season_shots('Regular Season')
         df_pi = get_season_shots('PlayIn')
         df_po = get_season_shots('Playoffs')
@@ -291,7 +287,7 @@ def generate_insights(df, is_team=False):
     return insights[:3]
 
 # ==========================================
-# 5. CHART ENGINE (2D GLOW)
+# 5. CHART ENGINE
 # ==========================================
 def hex_to_rgba(hex_code, alpha=1.0):
     h = hex_code.lstrip('#')
@@ -307,34 +303,38 @@ def get_arc(cx, cy, r, start, end, steps=50):
 
 def draw_court(fig, team_theme=DEFAULT_THEME, team_id=None):
     primary, _ = team_theme
-    glow = hex_to_rgba(primary, 0.55)
-    core = "rgba(255,255,255,0.85)"
-    paint_fill = hex_to_rgba(primary, 0.08)
+    glow = hex_to_rgba(primary, 0.55) if not st.session_state.arcade_mode else primary
+    core = "rgba(255,255,255,0.85)" if not st.session_state.arcade_mode else "#FFFFFF"
+    paint_fill = hex_to_rgba(primary, 0.08) if not st.session_state.arcade_mode else hex_to_rgba(primary, 0.3)
+    
+    line_width_thick = 3.5 if not st.session_state.arcade_mode else 5.0
+    line_width_thin = 0.8 if not st.session_state.arcade_mode else 0.0 # Remove inner core in arcade mode
 
     shapes = [
         dict(type="rect", x0=-250, y0=-52.5, x1=250, y1=417.5, line=dict(width=0), fillcolor="rgba(0,0,0,0)", layer="below"),
         dict(type="rect", x0=-80, y0=-52.5, x1=80, y1=137.5, line=dict(width=0), fillcolor=paint_fill, layer="below"),
     ]
 
-    def neon(shape_type, **kwargs):
-        shapes.append(dict(type=shape_type, layer="below", line=dict(color=glow, width=3.5), **kwargs))
-        shapes.append(dict(type=shape_type, layer="below", line=dict(color=core, width=0.8), **kwargs))
+    def draw_line(shape_type, **kwargs):
+        shapes.append(dict(type=shape_type, layer="below", line=dict(color=glow, width=line_width_thick), **kwargs))
+        if line_width_thin > 0:
+            shapes.append(dict(type=shape_type, layer="below", line=dict(color=core, width=line_width_thin), **kwargs))
 
-    neon("rect", x0=-250, y0=-52.5, x1=250, y1=417.5)
-    neon("rect", x0=-80, y0=-52.5, x1=80, y1=137.5)
-    neon("line", x0=-30, y0=-12.5, x1=30, y1=-12.5)
-    neon("path", path=get_arc(0, 0, 40, 0, 180))
-    neon("path", path=get_arc(0, 137.5, 60, 0, 180))
-    shapes.append(dict(type="path", path=get_arc(0, 137.5, 60, 180, 360), line=dict(color=glow, width=1.5, dash='dot'), layer="below"))
-    neon("line", x0=-220, y0=-52.5, x1=-220, y1=89.47)
-    neon("line", x0=220, y0=-52.5, x1=220, y1=89.47)
-    neon("path", path=get_arc(0, 0, 237.5, 22, 158))
-    neon("path", path=get_arc(0, 417.5, 60, 180, 360))
-    neon("path", path=get_arc(0, 417.5, 20, 180, 360))
-    shapes.append(dict(type="circle", x0=-7.5, y0=-7.5, x1=7.5, y1=7.5, xref="x", yref="y", line=dict(color="#FF9F0A", width=2), layer="below"))
+    draw_line("rect", x0=-250, y0=-52.5, x1=250, y1=417.5)
+    draw_line("rect", x0=-80, y0=-52.5, x1=80, y1=137.5)
+    draw_line("line", x0=-30, y0=-12.5, x1=30, y1=-12.5)
+    draw_line("path", path=get_arc(0, 0, 40, 0, 180))
+    draw_line("path", path=get_arc(0, 137.5, 60, 0, 180))
+    shapes.append(dict(type="path", path=get_arc(0, 137.5, 60, 180, 360), line=dict(color=glow, width=2.0, dash='dot'), layer="below"))
+    draw_line("line", x0=-220, y0=-52.5, x1=-220, y1=89.47)
+    draw_line("line", x0=220, y0=-52.5, x1=220, y1=89.47)
+    draw_line("path", path=get_arc(0, 0, 237.5, 22, 158))
+    draw_line("path", path=get_arc(0, 417.5, 60, 180, 360))
+    draw_line("path", path=get_arc(0, 417.5, 20, 180, 360))
+    shapes.append(dict(type="circle", x0=-7.5, y0=-7.5, x1=7.5, y1=7.5, xref="x", yref="y", line=dict(color="#FF9F0A", width=3 if st.session_state.arcade_mode else 2), layer="below"))
 
     fig.update_layout(shapes=shapes)
-    if team_id:
+    if team_id and not st.session_state.arcade_mode:
         fig.add_layout_image(dict(
             source=f"https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg",
             xref="x", yref="y", x=0, y=210, sizex=140, sizey=140,
@@ -352,11 +352,12 @@ def draw_radar(df, color):
     values = [min(paint / 0.6, 1.0), min(three / 0.6, 1.0), min(mid / 0.4, 1.0), min(eff / 0.6, 1.0), min(corner / 0.2, 1.0)]
     cats = ['Paint', 'Deep Range', 'Mid', 'Efficiency', 'Corner']
     
-    fig = go.Figure(go.Scatterpolar(r=values, theta=cats, fill='toself', line=dict(color=color, width=2), fillcolor=hex_to_rgba(color, 0.25)))
+    fig = go.Figure(go.Scatterpolar(r=values, theta=cats, fill='toself', line=dict(color=color, width=3 if st.session_state.arcade_mode else 2), fillcolor=hex_to_rgba(color, 0.4 if st.session_state.arcade_mode else 0.25)))
+    font_family = "'Press Start 2P', monospace" if st.session_state.arcade_mode else "'DM Mono', monospace"
     fig.update_layout(
         polar=dict(
             radialaxis=dict(visible=False, range=[0, 1]), bgcolor='rgba(0,0,0,0)',
-            angularaxis=dict(tickfont=dict(size=10, color='rgba(255,255,255,0.7)'), linecolor='rgba(255,255,255,0.08)')
+            angularaxis=dict(tickfont=dict(size=8 if st.session_state.arcade_mode else 10, color='rgba(255,255,255,0.9)' if st.session_state.arcade_mode else 'rgba(255,255,255,0.7)', family=font_family), linecolor='rgba(255,255,255,0.08)')
         ),
         showlegend=False, margin=dict(l=45, r=45, t=30, b=30), paper_bgcolor='rgba(0,0,0,0)', height=240
     )
@@ -367,70 +368,130 @@ def draw_radar(df, color):
 # ==========================================
 def inject_css(primary):
     p_glow = hex_to_rgba(primary, 0.35)
-    st.markdown(f"""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-
-    :root {{
-        --primary: {primary}; --primary-glow: {p_glow};
-        --bg: #080808; --surface: rgba(18,18,18,0.85);
-        --border: rgba(255,255,255,0.07);
-        --text-dim: rgba(255,255,255,0.45); --text-mid: rgba(255,255,255,0.7);
-    }}
-
-    .stApp {{
-        background-color: var(--bg);
-        background-image: radial-gradient(ellipse 80% 50% at 50% -10%, {hex_to_rgba(primary, 0.12)} 0%, transparent 70%),
-                          linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
-        font-family: 'DM Sans', sans-serif; color: #fff;
-    }}
-
-    section[data-testid="stSidebar"] {{ background: rgba(6,6,6,0.95) !important; border-right: 1px solid var(--border); }}
-    section[data-testid="stSidebar"] > div {{ padding-top: 1.5rem; }}
-
-    h1, h2, h3 {{ font-family: 'Barlow Condensed', sans-serif !important; text-transform: uppercase; }}
-
-    .panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(12px); }}
-    .panel-accent {{ border-color: {hex_to_rgba(primary, 0.4)}; box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)}; }}
-
-    .stat-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
-    .stat-cell {{ background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px 4px; text-align: center; min-width: 0; }}
-    .span-2 {{ grid-column: span 2; }}
-
-    .stat-cell-val {{ font-family: 'DM Mono', monospace; font-size: 21px; font-weight: 500; color: {primary}; line-height: 1; text-shadow: 0 0 16px {p_glow}; white-space: nowrap; }}
-    .stat-cell-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-
-    .zone-bar-wrap {{ width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; }}
-    .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
-
-    .badge {{ display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.08); cursor: help; }}
     
-    .insight-card {{ display: flex; align-items: flex-start; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-left: 3px solid {primary}; border-radius: 0 8px 8px 0; padding: 12px 14px; margin-bottom: 8px; }}
-    .insight-icon {{ font-size: 18px; line-height: 1; }}
-    .insight-title {{ font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; color: white; letter-spacing: 0.5px; }}
-    .insight-body {{ font-size: 11px; color: var(--text-mid); margin-top: 2px; line-height: 1.4; }}
+    if st.session_state.arcade_mode:
+        # ARCADE PIXEL THEME
+        st.markdown(f"""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+            
+            :root {{
+                --primary: {primary}; 
+                --bg: #000000; --surface: #111111;
+                --border: {primary};
+                --text-dim: #888888; --text-mid: #CCCCCC;
+            }}
 
-    .hero-name {{ font-family: 'Barlow Condensed', sans-serif; font-size: 44px; font-weight: 800; text-transform: uppercase; line-height: 1; color: white; letter-spacing: 1px; }}
-    .hero-sub {{ font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; margin-top: 4px; text-transform: uppercase; }}
+            .stApp {{
+                background-color: var(--bg);
+                font-family: 'Press Start 2P', cursive; color: #fff; text-transform: uppercase;
+                image-rendering: pixelated;
+            }}
 
-    .sidebar-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin: 16px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }}
+            section[data-testid="stSidebar"] {{ background: #000000 !important; border-right: 4px solid var(--border); }}
+            
+            h1, h2, h3, div {{ font-family: 'Press Start 2P', cursive !important; }}
 
-    .clutch-pill {{ text-align: center; font-family: 'DM Mono', monospace; font-size: 9px; color: #FF453A; background: rgba(255,69,58,0.12); border: 1px solid rgba(255,69,58,0.3); border-radius: 4px; padding: 4px 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: -8px; margin-bottom: 10px; }}
+            .panel {{ background: var(--surface); border: 4px solid var(--border); padding: 20px; margin-bottom: 16px; box-shadow: 6px 6px 0px rgba(255,255,255,0.1); }}
+            
+            .stat-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
+            .stat-cell {{ background: #000; border: 2px solid var(--border); padding: 12px 4px; text-align: center; }}
+            .span-2 {{ grid-column: span 2; }}
 
-    div[data-baseweb="select"] > div, .stTextInput > div > div {{ background: rgba(15,15,15,0.6) !important; border-color: var(--border) !important; color: white !important; font-family: 'DM Mono', monospace; font-size: 12px; border-radius: 6px !important; }}
-    .stSlider > div > div > div > div {{ background: {primary} !important; }}
-    .stButton > button {{ background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: white; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; border-radius: 6px; transition: all 0.2s; }}
-    .stButton > button:hover {{ background: {hex_to_rgba(primary, 0.15)}; border-color: {hex_to_rgba(primary, 0.5)}; color: white; }}
-    .stLinkButton > a {{ background: {primary} !important; color: #000 !important; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; border-radius: 6px; font-weight: 700; }}
-    
-    .section-divider {{ display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; }}
-    .section-divider-line {{ flex: 1; height: 1px; background: var(--border); }}
-    .section-divider-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; white-space: nowrap; }}
-    
-    div[role="radiogroup"] {{ margin-top: 8px; }}
-    div[role="radiogroup"] label {{ margin-right: 16px; font-size: 12px; color: var(--text-mid); }}
-</style>
-""", unsafe_allow_html=True)
+            .stat-cell-val {{ font-size: 14px; color: {primary}; line-height: 1.5; text-shadow: 2px 2px 0px #000; }}
+            .stat-cell-label {{ font-size: 8px; color: var(--text-mid); margin-top: 8px; }}
+
+            .zone-bar-wrap {{ width: 100%; height: 8px; background: #222; border: 2px solid #555; margin-top: 6px; }}
+            .zone-bar {{ height: 100%; background: {primary}; }}
+
+            .badge {{ display: inline-flex; align-items: center; gap: 5px; padding: 6px; border: 2px solid {primary}; font-size: 8px; background: #000 !important; color: #fff !important; text-shadow: 1px 1px 0px #000; }}
+            
+            .insight-card {{ display: flex; align-items: flex-start; gap: 12px; background: #000; border: 2px solid var(--border); padding: 12px; margin-bottom: 8px; }}
+            .insight-icon {{ font-size: 16px; }}
+            .insight-title {{ font-size: 10px; color: {primary}; margin-bottom: 6px; }}
+            .insight-body {{ font-size: 8px; color: var(--text-mid); line-height: 1.6; }}
+
+            .hero-name {{ font-size: 24px; color: {primary}; text-shadow: 3px 3px 0px #333; margin-bottom: 10px; }}
+            .hero-sub {{ font-size: 10px; color: var(--text-mid); }}
+
+            .sidebar-label {{ font-size: 10px; color: {primary}; border-bottom: 2px dashed var(--border); margin: 20px 0 10px; padding-bottom: 10px; }}
+
+            .clutch-pill {{ text-align: center; font-size: 8px; color: #FFF; background: #FF0000; border: 2px solid #FFF; padding: 8px; margin-bottom: 10px; animation: blink 1s step-end infinite; }}
+            @keyframes blink {{ 50% {{ opacity: 0.5; }} }}
+
+            .stButton > button, .stLinkButton > a {{ background: #000 !important; border: 4px solid {primary} !important; color: {primary} !important; font-family: 'Press Start 2P', cursive !important; font-size: 10px !important; border-radius: 0 !important; box-shadow: 4px 4px 0px rgba(255,255,255,0.2); transition: none; }}
+            .stButton > button:hover, .stLinkButton > a:hover {{ background: {primary} !important; color: #000 !important; top: 2px; left: 2px; box-shadow: 2px 2px 0px rgba(255,255,255,0.2); }}
+            
+            div[data-baseweb="select"] > div, .stTextInput > div > div {{ background: #000 !important; border: 2px solid {primary} !important; color: white !important; font-size: 10px !important; border-radius: 0 !important; }}
+            .stSlider > div > div > div > div {{ background: {primary} !important; }}
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        # DEFAULT MODERN THEME
+        st.markdown(f"""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+            :root {{
+                --primary: {primary}; --primary-glow: {p_glow};
+                --bg: #080808; --surface: rgba(18,18,18,0.85);
+                --border: rgba(255,255,255,0.07);
+                --text-dim: rgba(255,255,255,0.45); --text-mid: rgba(255,255,255,0.7);
+            }}
+
+            .stApp {{
+                background-color: var(--bg);
+                background-image: radial-gradient(ellipse 80% 50% at 50% -10%, {hex_to_rgba(primary, 0.12)} 0%, transparent 70%),
+                                  linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+                font-family: 'DM Sans', sans-serif; color: #fff;
+            }}
+
+            section[data-testid="stSidebar"] {{ background: rgba(6,6,6,0.95) !important; border-right: 1px solid var(--border); }}
+            section[data-testid="stSidebar"] > div {{ padding-top: 1.5rem; }}
+
+            h1, h2, h3 {{ font-family: 'Barlow Condensed', sans-serif !important; text-transform: uppercase; }}
+
+            .panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(12px); }}
+            .panel-accent {{ border-color: {hex_to_rgba(primary, 0.4)}; box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)}; }}
+
+            .stat-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
+            .stat-cell {{ background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px 4px; text-align: center; min-width: 0; }}
+            .span-2 {{ grid-column: span 2; }}
+
+            .stat-cell-val {{ font-family: 'DM Mono', monospace; font-size: 21px; font-weight: 500; color: {primary}; line-height: 1; text-shadow: 0 0 16px {p_glow}; white-space: nowrap; }}
+            .stat-cell-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+
+            .zone-bar-wrap {{ width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; }}
+            .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
+
+            .badge {{ display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; border: 1px solid rgba(255,255,255,0.08); cursor: help; }}
+            
+            .insight-card {{ display: flex; align-items: flex-start; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-left: 3px solid {primary}; border-radius: 0 8px 8px 0; padding: 12px 14px; margin-bottom: 8px; }}
+            .insight-icon {{ font-size: 18px; line-height: 1; }}
+            .insight-title {{ font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; color: white; letter-spacing: 0.5px; }}
+            .insight-body {{ font-size: 11px; color: var(--text-mid); margin-top: 2px; line-height: 1.4; }}
+
+            .hero-name {{ font-family: 'Barlow Condensed', sans-serif; font-size: 44px; font-weight: 800; text-transform: uppercase; line-height: 1; color: white; letter-spacing: 1px; }}
+            .hero-sub {{ font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); letter-spacing: 1px; margin-top: 4px; text-transform: uppercase; }}
+
+            .sidebar-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin: 16px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }}
+
+            .clutch-pill {{ text-align: center; font-family: 'DM Mono', monospace; font-size: 9px; color: #FF453A; background: rgba(255,69,58,0.12); border: 1px solid rgba(255,69,58,0.3); border-radius: 4px; padding: 4px 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: -8px; margin-bottom: 10px; }}
+
+            div[data-baseweb="select"] > div, .stTextInput > div > div {{ background: rgba(15,15,15,0.6) !important; border-color: var(--border) !important; color: white !important; font-family: 'DM Mono', monospace; font-size: 12px; border-radius: 6px !important; }}
+            .stSlider > div > div > div > div {{ background: {primary} !important; }}
+            .stButton > button {{ background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: white; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; border-radius: 6px; transition: all 0.2s; }}
+            .stButton > button:hover {{ background: {hex_to_rgba(primary, 0.15)}; border-color: {hex_to_rgba(primary, 0.5)}; color: white; }}
+            .stLinkButton > a {{ background: {primary} !important; color: #000 !important; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; border-radius: 6px; font-weight: 700; }}
+            
+            .section-divider {{ display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; }}
+            .section-divider-line {{ flex: 1; height: 1px; background: var(--border); }}
+            .section-divider-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; white-space: nowrap; }}
+            
+            div[role="radiogroup"] {{ margin-top: 8px; }}
+            div[role="radiogroup"] label {{ margin-right: 16px; font-size: 12px; color: var(--text-mid); }}
+        </style>
+        """, unsafe_allow_html=True)
 
 # ==========================================
 # 7. HELPER RENDERERS
@@ -443,15 +504,14 @@ def render_stat_grid(df, primary):
     three_pct = threes['SHOT_MADE_FLAG'].mean() if len(threes) > 0 else 0
     pps = ((made * 2) + threes['SHOT_MADE_FLAG'].sum()) / total if total else 0
     
-    p_glow = hex_to_rgba(primary, 0.35)
     st.markdown(f"""
 <div class="panel">
     <div class="stat-grid">
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{total}</div><div class="stat-cell-label">FGA</div></div>
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
-        <div class="stat-cell"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{made}</div><div class="stat-cell-label">FGM</div></div>
-        <div class="stat-cell span-2"><div class="stat-cell-val" style="color:{primary}; text-shadow:0 0 16px {p_glow};">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div>
+        <div class="stat-cell"><div class="stat-cell-val">{total}</div><div class="stat-cell-label">FGA</div></div>
+        <div class="stat-cell"><div class="stat-cell-val">{pct:.1%}</div><div class="stat-cell-label">FG%</div></div>
+        <div class="stat-cell"><div class="stat-cell-val">{three_pct:.1%}</div><div class="stat-cell-label">3P%</div></div>
+        <div class="stat-cell"><div class="stat-cell-val">{made}</div><div class="stat-cell-label">FGM</div></div>
+        <div class="stat-cell span-2"><div class="stat-cell-val">{pps:.2f}</div><div class="stat-cell-label">Pts / Shot</div></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -466,39 +526,38 @@ def render_zone_grid(df, primary):
         pct_str = f"{s['pct']:.0%}" if s['n'] > 0 else "—"
         bar_w = int(s['pct'] * 100) if s['n'] > 0 else 0
         rows_html += f"""
-<div style="margin-bottom:8px;">
+<div style="margin-bottom:12px;">
     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-        <span style="color:var(--text-mid); font-size:9px; letter-spacing:0.5px;">{label}</span>
-        <span style="font-family:'DM Mono',monospace; font-size:10px; color:var(--text-mid);">
-            <span style="color:{primary}; font-weight:500;">{pct_str}</span>
+        <span style="color:var(--text-mid); font-size:{'8px' if st.session_state.arcade_mode else '9px'};">{label}</span>
+        <span style="font-size:{'8px' if st.session_state.arcade_mode else '10px'}; color:var(--text-mid);">
+            <span style="color:{primary};">{pct_str}</span>
             <span style="color:var(--text-dim); margin-left:6px;">{s['n']} att</span>
         </span>
     </div>
-    <div class="zone-bar-wrap"><div class="zone-bar" style="width:{bar_w}%; background:{primary};"></div></div>
+    <div class="zone-bar-wrap"><div class="zone-bar" style="width:{bar_w}%;"></div></div>
 </div>"""
     st.markdown(f'<div class="panel" style="margin-top:0;"><div class="sidebar-label" style="margin-top:0;">Zone Breakdown</div>{rows_html}</div>', unsafe_allow_html=True)
 
 def render_insights(df, is_team, primary):
     insights = generate_insights(df, is_team)
-    cards = "".join([f'<div class="insight-card" style="border-left: 3px solid {primary};"><div class="insight-icon">{icon}</div><div><div class="insight-title">{title}</div><div class="insight-body">{body}</div></div></div>' for icon, title, body in insights])
+    cards = "".join([f'<div class="insight-card"><div class="insight-icon">{icon}</div><div><div class="insight-title">{title}</div><div class="insight-body">{body}</div></div></div>' for icon, title, body in insights])
     st.markdown(f'<div class="panel"><div class="sidebar-label" style="margin-top:0;">Scouting Report</div>{cards}</div>', unsafe_allow_html=True)
 
 def render_jumbotron(selected_shot, primary):
     if not selected_shot:
-        st.markdown(f'<div class="panel" style="margin-bottom:12px; padding:12px; border-style:dashed; border-color:rgba(255,255,255,0.1); text-align:center;"><span style="color:rgba(255,255,255,0.25); font-family:\'DM Mono\',monospace; font-size:11px; letter-spacing:1px; text-transform:uppercase;">↑ Select a shot on the court to view game tape</span></div>', unsafe_allow_html=True)
+        msg = "↑ SELECT SHOT FOR REPLAY" if st.session_state.arcade_mode else "↑ Select a shot on the court to view game tape"
+        st.markdown(f'<div class="panel" style="margin-bottom:12px; padding:12px; border-style:dashed; border-color:rgba(255,255,255,0.2); text-align:center;"><span style="color:rgba(255,255,255,0.4); font-size:{"8px" if st.session_state.arcade_mode else "11px"};">{msg}</span></div>', unsafe_allow_html=True)
         return
     s = selected_shot
-    glow = hex_to_rgba(primary, 0.4)
-    bg = hex_to_rgba(primary, 0.05)
     st.markdown(f'''
-    <div class="panel" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-color:{glow}; background:{bg}; box-shadow:0 0 24px {hex_to_rgba(primary, 0.15)};">
+    <div class="panel" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; padding:14px 20px;">
         <div>
-            <div style="font-family:\'DM Mono\',monospace; font-size:9px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase;">Replay Center</div>
-            <div style="font-family:\'Barlow Condensed\',sans-serif; font-size:22px; font-weight:700; text-transform:uppercase; color:white; line-height:1.2;">{s["action"]}</div>
-            <div style="font-family:\'DM Mono\',monospace; font-size:11px; color:{primary}; margin-top:2px;">{s["distance"]} FT &nbsp;·&nbsp; Q{s["period"]}</div>
+            <div style="font-size:{"8px" if st.session_state.arcade_mode else "9px"}; color:var(--text-dim); margin-bottom:6px;">REPLAY CENTER</div>
+            <div style="font-size:{"12px" if st.session_state.arcade_mode else "22px"}; color:white;">{s["action"]}</div>
+            <div style="font-size:{"8px" if st.session_state.arcade_mode else "11px"}; color:{primary}; margin-top:8px;">{s["distance"]} FT &nbsp;·&nbsp; Q{s["period"]}</div>
         </div>
         <a href="{s["url"]}" target="_blank" style="text-decoration:none; display:inline-block;">
-            <div style="background:{primary}; color:#000; font-family:\'DM Mono\',monospace; font-size:11px; font-weight:700; padding:10px 18px; border-radius:6px; letter-spacing:1px; transition:all 0.2s;">▶ WATCH FILM</div>
+            <div style="background:{primary}; color:#000; padding:12px; border: {"2px solid #FFF" if st.session_state.arcade_mode else "none"};">{"PLAY" if st.session_state.arcade_mode else "▶ WATCH FILM"}</div>
         </a>
     </div>
     ''', unsafe_allow_html=True)
@@ -511,7 +570,8 @@ get_teams_map_retried = with_retries(get_teams_map)
 teams_map = get_teams_map_retried()
 
 with st.sidebar:
-    st.markdown(f"<div style=\"font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; text-transform:uppercase; color:white; letter-spacing:1px; margin-bottom:16px;\">NBA Shot Lab<span style=\"font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3); vertical-align:middle; margin-left:6px;\">v9</span></div>", unsafe_allow_html=True)
+    title_html = "<div style=\"font-size:16px; color:white; margin-bottom:20px; text-shadow: 2px 2px 0px #F00;\">NBA JAM STATS</div>" if st.session_state.arcade_mode else "<div style=\"font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; text-transform:uppercase; color:white; letter-spacing:1px; margin-bottom:16px;\">NBA Shot Lab<span style=\"font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.3); vertical-align:middle; margin-left:6px;\">v10</span></div>"
+    st.markdown(title_html, unsafe_allow_html=True)
 
     st.text_input("Command", placeholder="e.g. Tatum vs Lakers...", key="command_input", on_change=process_command, label_visibility="collapsed")
     
@@ -553,7 +613,7 @@ with st.sidebar:
         st.session_state.clutch_mode = not st.session_state.clutch_mode
         st.rerun()
     if st.session_state.clutch_mode:
-        st.markdown("<div class='clutch-pill'>Active · Q4 / OT Only</div>", unsafe_allow_html=True)
+        st.markdown("<div class='clutch-pill'>CLUTCH MODE ACTIVE</div>", unsafe_allow_html=True)
 
     fetch_shots_retried = with_retries(fetch_shots)
     base_df = fetch_shots_retried(player_id, team_id, game_id=None)
@@ -561,18 +621,19 @@ with st.sidebar:
     st.session_state.bag_pick = st.multiselect("Shot Actions", available_actions, default=[a for a in st.session_state.bag_pick if a in available_actions], placeholder="All shot types...", key="bag_selector", label_visibility="collapsed")
 
     if not base_df.empty:
-        st.markdown("<div class='section-divider'><div class='section-divider-line'></div><div class='section-divider-label'>Playstyle DNA</div><div class='section-divider-line'></div></div>", unsafe_allow_html=True)
-        if c_mode: st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid);'>PLAYER A</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>Playstyle DNA</div>", unsafe_allow_html=True)
+        if c_mode: st.markdown(f"<div style='text-align:center; font-size:8px; color:var(--text-mid);'>PLAYER A</div>", unsafe_allow_html=True)
         st.plotly_chart(draw_radar(base_df, current_theme[0]), use_container_width=True, config={'displayModeBar': False})
     
     if c_mode:
         base_df_b = fetch_shots_retried(player_b_id, team_b_id, game_id=None)
         if not base_df_b.empty:
-            st.markdown("<div style='text-align:center; font-family:\"DM Mono\",monospace; font-size:10px; color:var(--text-mid); margin-top:10px;'>PLAYER B</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size:8px; color:var(--text-mid); margin-top:10px;'>PLAYER B</div>", unsafe_allow_html=True)
             st.plotly_chart(draw_radar(base_df_b, theme_b[0]), use_container_width=True, config={'displayModeBar': False})
 
-    st.markdown("<div class='sidebar-label'>Manual Override</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-label'>System Setup</div>", unsafe_allow_html=True)
     manual_game_id = st.text_input("Force Game ID", placeholder="e.g. 0052500001", label_visibility="collapsed")
+    st.session_state.arcade_mode = st.toggle("🕹️ Arcade Mode", st.session_state.arcade_mode)
 
 # ==========================================
 # 9. MAIN DASHBOARD RENDERER
@@ -582,7 +643,7 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     fetch_shots_retried = with_retries(fetch_shots)
     df_main = fetch_shots_retried(pid, tid, game_id=sel_game)
     if df_main.empty:
-        st.markdown(f'<div class="panel" style="text-align:center; padding:60px 20px; border-style:dashed; border-color:rgba(255,255,255,0.08);"><div style="font-family:\'Barlow Condensed\',sans-serif; font-size:28px; text-transform:uppercase; color:rgba(255,255,255,0.2);">No Shot Data</div><div style="font-family:\'DM Mono\',monospace; font-size:11px; color:rgba(255,255,255,0.15); margin-top:8px;">{pname}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="panel" style="text-align:center; padding:60px 20px;"><div style="font-size:{"16px" if st.session_state.arcade_mode else "28px"}; color:rgba(255,255,255,0.2);">NO DATA</div></div>', unsafe_allow_html=True)
         return
 
     img_url = opp_display if (sel_game and opp_display) else (f"https://cdn.nba.com/headshots/nba/latest/1040x760/{pid}.png" if pid else f"https://cdn.nba.com/logos/nba/{tid}/global/L/logo.svg")
@@ -590,15 +651,16 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     hero_sub = lbl_display if lbl_display else "2025–26 Season"
     
     badges = generate_badges(df_main, is_team=(pid == 0))
-    badge_html = "".join([f"<span class='badge' title='{b['desc']}' style='background:{b['bg']}; color:{b['color']};'>{b['icon']} {b['name']}</span>" for b in badges])
+    badge_html = "".join([f"<span class='badge' title='{b['desc']}'>{b['icon']} {b['name']}</span>" for b in badges])
 
+    radius = "0" if st.session_state.arcade_mode else "50%"
     st.markdown(f"""
     <div class="panel" style="display:flex; align-items:center; gap:24px; margin-bottom:16px;">
-        <img src="{img_url}" style="width:72px; height:72px; border-radius:50%; border:2px solid {theme[0]}; object-fit:contain; background:rgba(0,0,0,0.3); padding:5px; box-shadow: 0 0 28px {hex_to_rgba(theme[0], 0.3)}; flex-shrink:0;">
+        <img src="{img_url}" style="width:72px; height:72px; border-radius:{radius}; border:4px solid {theme[0]}; object-fit:contain; background:rgba(0,0,0,0.8); padding:5px; flex-shrink:0;">
         <div style="min-width:0;">
-            <div class="hero-name" style="font-size:32px;">{hero_name}</div>
+            <div class="hero-name">{hero_name}</div>
             <div class="hero-sub">{hero_sub}</div>
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">{badge_html}</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;">{badge_html}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -610,13 +672,18 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     shot_type_api = {"All": "All", "2PT": "2PT Field Goal", "3PT": "3PT Field Goal"}[s_type]
     df = filter_shots(df_main, st.session_state.clutch_mode, shot_type_api, outcome, st.session_state.bag_pick)
 
-    # Core 2D Chart Generation
     fig = go.Figure()
     draw_court(fig, team_theme=theme, team_id=tid)
     if not df.empty:
         miss, made = df[df['SHOT_MADE_FLAG'] == 0], df[df['SHOT_MADE_FLAG'] == 1]
-        fig.add_trace(go.Scattergl(x=miss['LOC_X'], y=miss['LOC_Y'], mode='markers', name='Miss', customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='x', size=7, color='rgba(255,255,255,0.35)', line=dict(width=1.2))))
-        fig.add_trace(go.Scattergl(x=made['LOC_X'], y=made['LOC_Y'], mode='markers', name='Make', customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='circle', size=9, color=theme[0], line=dict(color='white', width=1.2), opacity=0.8)))
+        
+        # In arcade mode, use squares and larger sizes for a pixel look
+        miss_sym, made_sym = ('square-x-open', 'square') if st.session_state.arcade_mode else ('x', 'circle')
+        miss_size, made_size = (10, 12) if st.session_state.arcade_mode else (7, 9)
+        font_family = "'Press Start 2P', monospace" if st.session_state.arcade_mode else "'DM Sans', sans-serif"
+        
+        fig.add_trace(go.Scattergl(x=miss['LOC_X'], y=miss['LOC_Y'], mode='markers', name='Miss', customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol=miss_sym, size=miss_size, color='rgba(255,255,255,0.6)', line=dict(width=1.5))))
+        fig.add_trace(go.Scattergl(x=made['LOC_X'], y=made['LOC_Y'], mode='markers', name='Make', customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol=made_sym, size=made_size, color=theme[0], line=dict(color='white', width=1.5), opacity=0.9)))
     
     chart_height = 450 if st.session_state.compare_mode else 620
     fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
@@ -673,7 +740,7 @@ selected_game_id, opponent_display, game_label_display = None, "", ""
 display_theme = current_theme
 
 if not schedule.empty:
-    st.markdown("<div class='section-divider' style='margin-top:0; margin-bottom:8px;'><div class='section-divider-line'></div><div class='section-divider-label'>Season Timeline</div><div class='section-divider-line'></div></div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-label'>Season Timeline</div>", unsafe_allow_html=True)
     slider_options = ["Full Season"] + schedule['Label'].tolist()
     if st.session_state.game_id_pick not in slider_options: st.session_state.game_id_pick = "Full Season"
     selected_label = st.select_slider("Game Tape", options=slider_options, value=st.session_state.game_id_pick, key="game_tape_slider", on_change=on_slider_change, label_visibility="collapsed")
