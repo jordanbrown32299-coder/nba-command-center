@@ -102,7 +102,7 @@ def on_slider_change():
     st.session_state.game_id_pick = st.session_state.game_tape_slider
 
 # ==========================================
-# 3. DATA ENGINE (UPGRADED PLAYOFF ROUTING)
+# 3. DATA ENGINE
 # ==========================================
 def with_retries(max_retries=3, backoff_factor=1.5):
     """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
@@ -167,14 +167,10 @@ def fetch_shots(player_id, team_id, game_id=None):
         game_id_str = str(game_id).zfill(10)
         params['game_id_nullable'] = game_id_str
         
-        # Read the Game ID prefix to route the API to the correct database
         prefix = game_id_str[:3]
-        if prefix == '004':
-            params['season_type_all_star'] = 'Playoffs'
-        elif prefix == '005':
-            params['season_type_all_star'] = 'PlayIn'
-        else:
-            params['season_type_all_star'] = 'Regular Season'
+        if prefix == '004': params['season_type_all_star'] = 'Playoffs'
+        elif prefix == '005': params['season_type_all_star'] = 'PlayIn'
+        else: params['season_type_all_star'] = 'Regular Season'
             
         df = shotchartdetail.ShotChartDetail(**params, timeout=15).get_data_frames()[0]
     else:
@@ -295,55 +291,53 @@ def generate_insights(df, is_team=False):
     return insights[:3]
 
 # ==========================================
-# 5. CHART ENGINE
+# 5. CHART ENGINE (UPGRADED 3D COURT)
 # ==========================================
 def hex_to_rgba(hex_code, alpha=1.0):
     h = hex_code.lstrip('#')
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha})"
 
-def get_arc(cx, cy, r, start, end, steps=50):
-    t = np.linspace(np.radians(start), np.radians(end), steps)
-    path = f"M {cx + r*np.cos(t[0]):.2f} {cy + r*np.sin(t[0]):.2f}"
-    for i in range(1, len(t)):
-        path += f" L {cx + r*np.cos(t[i]):.2f} {cy + r*np.sin(t[i]):.2f}"
-    return path
-
-def draw_court(fig, team_theme=DEFAULT_THEME, team_id=None):
-    primary, _ = team_theme
+def draw_court_3d(team_theme=DEFAULT_THEME):
+    primary = team_theme[0]
     glow = hex_to_rgba(primary, 0.55)
     core = "rgba(255,255,255,0.85)"
-    paint_fill = hex_to_rgba(primary, 0.08)
-
-    shapes = [
-        dict(type="rect", x0=-250, y0=-52.5, x1=250, y1=417.5, line=dict(width=0), fillcolor="rgba(0,0,0,0)", layer="below"),
-        dict(type="rect", x0=-80, y0=-52.5, x1=80, y1=137.5, line=dict(width=0), fillcolor=paint_fill, layer="below"),
-    ]
-
-    def neon(shape_type, **kwargs):
-        shapes.append(dict(type=shape_type, layer="below", line=dict(color=glow, width=3.5), **kwargs))
-        shapes.append(dict(type=shape_type, layer="below", line=dict(color=core, width=0.8), **kwargs))
-
-    neon("rect", x0=-250, y0=-52.5, x1=250, y1=417.5)
-    neon("rect", x0=-80, y0=-52.5, x1=80, y1=137.5)
-    neon("line", x0=-30, y0=-12.5, x1=30, y1=-12.5)
-    neon("path", path=get_arc(0, 0, 40, 0, 180))
-    neon("path", path=get_arc(0, 137.5, 60, 0, 180))
-    shapes.append(dict(type="path", path=get_arc(0, 137.5, 60, 180, 360), line=dict(color=glow, width=1.5, dash='dot'), layer="below"))
-    neon("line", x0=-220, y0=-52.5, x1=-220, y1=89.47)
-    neon("line", x0=220, y0=-52.5, x1=220, y1=89.47)
-    neon("path", path=get_arc(0, 0, 237.5, 22, 158))
-    neon("path", path=get_arc(0, 417.5, 60, 180, 360))
-    neon("path", path=get_arc(0, 417.5, 20, 180, 360))
-    shapes.append(dict(type="circle", x0=-7.5, y0=-7.5, x1=7.5, y1=7.5, xref="x", yref="y", line=dict(color="#FF9F0A", width=2), layer="below"))
-
-    fig.update_layout(shapes=shapes)
-    if team_id:
-        fig.add_layout_image(dict(
-            source=f"https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg",
-            xref="x", yref="y", x=0, y=210, sizex=140, sizey=140,
-            xanchor="center", yanchor="middle", opacity=0.12, layer="below"
+    
+    traces = []
+    
+    def add_line(x, y, z=0, width=4, color=glow, dash='solid'):
+        traces.append(go.Scatter3d(
+            x=x, y=y, z=[z]*len(x),
+            mode='lines', line=dict(color=color, width=width, dash=dash),
+            hoverinfo='none', showlegend=False
         ))
+
+    # Outer Boundaries & Paint
+    add_line([-250, 250, 250, -250, -250], [-52.5, -52.5, 417.5, 417.5, -52.5])
+    add_line([-80, 80, 80, -80, -80], [-52.5, -52.5, 137.5, 137.5, -52.5])
+    
+    # Backboard & Hoop
+    add_line([-30, 30], [-12.5, -12.5], width=6, color=core)
+    t_hoop = np.linspace(0, 2*np.pi, 40)
+    add_line(7.5 * np.cos(t_hoop), 7.5 * np.sin(t_hoop), color='#FF9F0A', width=3)
+    
+    # 3-Point Line
+    t_3pt = np.linspace(np.radians(22), np.radians(158), 60)
+    x_3pt = [-220, -220] + list(237.5 * np.cos(t_3pt)) + [220, 220]
+    y_3pt = [-52.5, 89.47] + list(237.5 * np.sin(t_3pt)) + [89.47, -52.5]
+    add_line(x_3pt, y_3pt)
+    
+    # Free Throw Circles (Solid top, dashed bottom)
+    t_ft_top = np.linspace(0, np.pi, 40)
+    add_line(60 * np.cos(t_ft_top), 137.5 + 60 * np.sin(t_ft_top))
+    t_ft_bot = np.linspace(np.pi, 2*np.pi, 40)
+    add_line(60 * np.cos(t_ft_bot), 137.5 + 60 * np.sin(t_ft_bot), dash='dot')
+
+    # Restricted Area
+    t_ra = np.linspace(0, np.pi, 40)
+    add_line(40 * np.cos(t_ra), 40 * np.sin(t_ra))
+    
+    return traces
 
 def draw_radar(df, color):
     if df.empty: return go.Figure()
@@ -397,42 +391,12 @@ def inject_css(primary):
     .panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; backdrop-filter: blur(12px); }}
     .panel-accent {{ border-color: {hex_to_rgba(primary, 0.4)}; box-shadow: 0 0 24px {hex_to_rgba(primary, 0.1)}; }}
 
-    /* CRUSH-PROOF CSS GRID */
-    .stat-grid {{ 
-        display: grid; 
-        grid-template-columns: repeat(3, minmax(0, 1fr)); 
-        gap: 12px; 
-    }}
-    .stat-cell {{ 
-        background: rgba(255,255,255,0.03); 
-        border: 1px solid var(--border); 
-        border-radius: 8px; 
-        padding: 12px 4px; /* Tighter padding so percentages fit */
-        text-align: center;
-        min-width: 0;
-    }}
+    .stat-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }}
+    .stat-cell {{ background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px 4px; text-align: center; min-width: 0; }}
     .span-2 {{ grid-column: span 2; }}
 
-    .stat-cell-val {{ 
-        font-family: 'DM Mono', monospace; 
-        font-size: 21px; 
-        font-weight: 500; 
-        color: {primary}; 
-        line-height: 1; 
-        text-shadow: 0 0 16px {p_glow};
-        white-space: nowrap;
-    }}
-    .stat-cell-label {{ 
-        font-family: 'DM Mono', monospace; 
-        font-size: 9px; 
-        letter-spacing: 1px; 
-        color: var(--text-dim); 
-        text-transform: uppercase; 
-        margin-top: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }}
+    .stat-cell-val {{ font-family: 'DM Mono', monospace; font-size: 21px; font-weight: 500; color: {primary}; line-height: 1; text-shadow: 0 0 16px {p_glow}; white-space: nowrap; }}
+    .stat-cell-label {{ font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 
     .zone-bar-wrap {{ width: 100%; height: 2px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 4px; }}
     .zone-bar {{ height: 100%; background: {primary}; border-radius: 2px; }}
@@ -609,7 +573,7 @@ with st.sidebar:
     manual_game_id = st.text_input("Force Game ID", placeholder="e.g. 0052500001", label_visibility="collapsed")
 
 # ==========================================
-# 9. MAIN DASHBOARD RENDERER
+# 9. MAIN DASHBOARD RENDERER (UPGRADED TO 3D)
 # ==========================================
 @st.fragment
 def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game, lbl_display, opp_display):
@@ -644,25 +608,50 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     shot_type_api = {"All": "All", "2PT": "2PT Field Goal", "3PT": "3PT Field Goal"}[s_type]
     df = filter_shots(df_main, st.session_state.clutch_mode, shot_type_api, outcome, st.session_state.bag_pick)
 
-    # Core Chart Generation
+    # Core 3D Chart Generation
     fig = go.Figure()
-    draw_court(fig, team_theme=theme, team_id=tid)
+    for trace in draw_court_3d(theme):
+        fig.add_trace(trace)
+        
     if not df.empty:
         miss, made = df[df['SHOT_MADE_FLAG'] == 0], df[df['SHOT_MADE_FLAG'] == 1]
-        fig.add_trace(go.Scattergl(x=miss['LOC_X'], y=miss['LOC_Y'], mode='markers', name='Miss', customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='x', size=7, color='rgba(255,255,255,0.35)', line=dict(width=1.2))))
-        fig.add_trace(go.Scattergl(x=made['LOC_X'], y=made['LOC_Y'], mode='markers', name='Make', customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1), hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>", marker=dict(symbol='circle', size=9, color=theme[0], line=dict(color='white', width=1.2), opacity=0.8)))
+        fig.add_trace(go.Scatter3d(
+            x=miss['LOC_X'], y=miss['LOC_Y'], z=[0]*len(miss),
+            mode='markers', name='Miss',
+            customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1),
+            hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>",
+            marker=dict(symbol='x', size=4, color='rgba(255,255,255,0.35)', line=dict(width=1))
+        ))
+        fig.add_trace(go.Scatter3d(
+            x=made['LOC_X'], y=made['LOC_Y'], z=[0]*len(made),
+            mode='markers', name='Make',
+            customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1),
+            hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>",
+            marker=dict(symbol='circle', size=6, color=theme[0], line=dict(color='white', width=1), opacity=0.8)
+        ))
     
     chart_height = 450 if st.session_state.compare_mode else 620
-    fig.update_layout(height=chart_height, autosize=True, xaxis=dict(visible=False, range=[-250, 250], fixedrange=True), yaxis=dict(visible=False, range=[-52.5, 417.5], scaleanchor="x", scaleratio=1, fixedrange=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest', clickmode='event+select', dragmode='pan')
+    fig.update_layout(
+        height=chart_height, autosize=True,
+        scene=dict(
+            xaxis=dict(visible=False, range=[-250, 250], showgrid=False, zeroline=False),
+            yaxis=dict(visible=False, range=[-52.5, 417.5], showgrid=False, zeroline=False),
+            zaxis=dict(visible=False, range=[-10, 50], showgrid=False, zeroline=False),
+            aspectmode='data',
+            camera=dict(
+                up=dict(x=0, y=0, z=1),
+                center=dict(x=0, y=0.5, z=0),
+                eye=dict(x=0, y=-1.4, z=1.2) # Isometric baseline angle
+            )
+        ),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), showlegend=False, hovermode='closest'
+    )
 
     is_compact = st.session_state.compare_mode
     if is_compact:
-        # Create a placeholder to hold the Jumbotron above the chart
         jumbo_placeholder = st.empty()
-        
         event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
         
-        # Intercept and process the event instantly
         if event and event.get("selection", {}).get("points"):
             pt = event["selection"]["points"][0]
             try:
@@ -672,7 +661,6 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
                     st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
             except: pass
             
-        # Draw the Jumbotron into the placeholder using the freshest state
         with jumbo_placeholder:
             render_jumbotron(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
             
@@ -682,12 +670,9 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
     else:
         col_chart, col_panel = st.columns([2.5, 1])
         with col_chart:
-            # Create a placeholder to hold the Jumbotron above the chart
             jumbo_placeholder = st.empty()
-            
             event = st.plotly_chart(fig, use_container_width=True, on_select="rerun", selection_mode="points", key=f"chart_{key_prefix}", config={'displayModeBar': False})
             
-            # Intercept and process the event instantly
             if event and event.get("selection", {}).get("points"):
                 pt = event["selection"]["points"][0]
                 try:
@@ -697,7 +682,6 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
                         st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
                 except: pass
                 
-            # Draw the Jumbotron into the placeholder using the freshest state
             with jumbo_placeholder:
                 render_jumbotron(st.session_state.get(f'selected_shot_{key_prefix}'), theme[0])
 
