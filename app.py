@@ -102,7 +102,7 @@ def on_slider_change():
     st.session_state.game_id_pick = st.session_state.game_tape_slider
 
 # ==========================================
-# 3. DATA ENGINE
+# 3. DATA ENGINE (UPGRADED PLAYOFF ROUTING)
 # ==========================================
 def with_retries(max_retries=3, backoff_factor=1.5):
     """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
@@ -164,7 +164,18 @@ def fetch_schedule(team_id, team_name):
 def fetch_shots(player_id, team_id, game_id=None):
     params = {'player_id': player_id or 0, 'team_id': team_id, 'context_measure_simple': 'FGA'}
     if game_id:
-        params['game_id_nullable'] = str(game_id).zfill(10)
+        game_id_str = str(game_id).zfill(10)
+        params['game_id_nullable'] = game_id_str
+        
+        # Read the Game ID prefix to route the API to the correct database
+        prefix = game_id_str[:3]
+        if prefix == '004':
+            params['season_type_all_star'] = 'Playoffs'
+        elif prefix == '005':
+            params['season_type_all_star'] = 'PlayIn'
+        else:
+            params['season_type_all_star'] = 'Regular Season'
+            
         df = shotchartdetail.ShotChartDetail(**params, timeout=15).get_data_frames()[0]
     else:
         params['season_nullable'] = '2025-26'
