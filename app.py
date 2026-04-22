@@ -102,7 +102,7 @@ def on_slider_change():
     st.session_state.game_id_pick = st.session_state.game_tape_slider
 
 # ==========================================
-# 3. DATA ENGINE
+# 3. DATA ENGINE 
 # ==========================================
 def with_retries(max_retries=3, backoff_factor=1.5):
     """Decorator to retry API calls with exponential backoff to prevent IP bans/timeouts."""
@@ -291,7 +291,7 @@ def generate_insights(df, is_team=False):
     return insights[:3]
 
 # ==========================================
-# 5. CHART ENGINE (UPGRADED 3D COURT)
+# 5. CHART ENGINE (POLISHED 3D)
 # ==========================================
 def hex_to_rgba(hex_code, alpha=1.0):
     h = hex_code.lstrip('#')
@@ -305,21 +305,27 @@ def draw_court_3d(team_theme=DEFAULT_THEME):
     
     traces = []
     
+    # 1. Smoked Glass Floor (Mesh3d at Z=-2)
+    traces.append(go.Mesh3d(
+        x=[-250, 250, 250, -250],
+        y=[-52.5, -52.5, 417.5, 417.5],
+        z=[-2, -2, -2, -2],
+        i=[0, 2], j=[1, 3], k=[2, 0], # Defines the two triangles that make the floor rectangle
+        color='#0c0c0c', opacity=0.85,
+        hoverinfo='none', showscale=False
+    ))
+    
     def add_line(x, y, z=0, width=4, color=glow, dash='solid'):
+        z_arr = z if isinstance(z, list) else [z]*len(x)
         traces.append(go.Scatter3d(
-            x=x, y=y, z=[z]*len(x),
+            x=x, y=y, z=z_arr,
             mode='lines', line=dict(color=color, width=width, dash=dash),
             hoverinfo='none', showlegend=False
         ))
 
-    # Outer Boundaries & Paint
+    # Outer Boundaries & Paint (Flat on floor Z=0)
     add_line([-250, 250, 250, -250, -250], [-52.5, -52.5, 417.5, 417.5, -52.5])
     add_line([-80, 80, 80, -80, -80], [-52.5, -52.5, 137.5, 137.5, -52.5])
-    
-    # Backboard & Hoop
-    add_line([-30, 30], [-12.5, -12.5], width=6, color=core)
-    t_hoop = np.linspace(0, 2*np.pi, 40)
-    add_line(7.5 * np.cos(t_hoop), 7.5 * np.sin(t_hoop), color='#FF9F0A', width=3)
     
     # 3-Point Line
     t_3pt = np.linspace(np.radians(22), np.radians(158), 60)
@@ -336,6 +342,13 @@ def draw_court_3d(team_theme=DEFAULT_THEME):
     # Restricted Area
     t_ra = np.linspace(0, np.pi, 40)
     add_line(40 * np.cos(t_ra), 40 * np.sin(t_ra))
+    
+    # 2. True 3D Hoop, Backboard, & Stanchion
+    t_hoop = np.linspace(0, 2*np.pi, 40)
+    add_line(7.5 * np.cos(t_hoop), 7.5 * np.sin(t_hoop), z=100, color='#FF9F0A', width=5) # 10ft Rim
+    add_line([-30, 30, 30, -30, -30], [-12.5, -12.5, -12.5, -12.5, -12.5], z=[90, 90, 130, 130, 90], width=4, color=core) # Outer Backboard
+    add_line([-12, 12, 12, -12, -12], [-12.5, -12.5, -12.5, -12.5, -12.5], z=[100, 100, 118, 118, 100], width=2, color=core) # Inner Square
+    add_line([0, 0], [-12.5, -40], z=[90, 0], width=6, color=core) # Base Stanchion
     
     return traces
 
@@ -573,7 +586,7 @@ with st.sidebar:
     manual_game_id = st.text_input("Force Game ID", placeholder="e.g. 0052500001", label_visibility="collapsed")
 
 # ==========================================
-# 9. MAIN DASHBOARD RENDERER (UPGRADED TO 3D)
+# 9. MAIN DASHBOARD RENDERER
 # ==========================================
 @st.fragment
 def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game, lbl_display, opp_display):
@@ -614,16 +627,28 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         fig.add_trace(trace)
         
     if not df.empty:
+        # 3. Create Drop Spikes (connecting elevated dot to the floor)
+        spike_x = [x for val in df['LOC_X'] for x in (val, val, None)]
+        spike_y = [y for val in df['LOC_Y'] for y in (val, val, None)]
+        spike_z = [z for _ in range(len(df)) for z in (20, 0, None)]
+        
+        fig.add_trace(go.Scatter3d(
+            x=spike_x, y=spike_y, z=spike_z,
+            mode='lines', line=dict(color='rgba(255,255,255,0.15)', width=1.5),
+            hoverinfo='none', showlegend=False
+        ))
+
+        # Render floating data points at Z=20
         miss, made = df[df['SHOT_MADE_FLAG'] == 0], df[df['SHOT_MADE_FLAG'] == 1]
         fig.add_trace(go.Scatter3d(
-            x=miss['LOC_X'], y=miss['LOC_Y'], z=[0]*len(miss),
+            x=miss['LOC_X'], y=miss['LOC_Y'], z=[20]*len(miss),
             mode='markers', name='Miss',
             customdata=np.stack((miss['PLAYER_NAME'], miss['SHOT_DISTANCE'], miss['ACTION_TYPE'], miss['id']), axis=-1),
             hovertemplate="<b>%{customdata[0]}</b><br>Miss · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>",
             marker=dict(symbol='x', size=4, color='rgba(255,255,255,0.35)', line=dict(width=1))
         ))
         fig.add_trace(go.Scatter3d(
-            x=made['LOC_X'], y=made['LOC_Y'], z=[0]*len(made),
+            x=made['LOC_X'], y=made['LOC_Y'], z=[20]*len(made),
             mode='markers', name='Make',
             customdata=np.stack((made['PLAYER_NAME'], made['SHOT_DISTANCE'], made['ACTION_TYPE'], made['id']), axis=-1),
             hovertemplate="<b>%{customdata[0]}</b><br>Make · %{customdata[1]} ft<br>%{customdata[2]}<extra></extra>",
@@ -636,7 +661,7 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         scene=dict(
             xaxis=dict(visible=False, range=[-250, 250], showgrid=False, zeroline=False),
             yaxis=dict(visible=False, range=[-52.5, 417.5], showgrid=False, zeroline=False),
-            zaxis=dict(visible=False, range=[-10, 50], showgrid=False, zeroline=False),
+            zaxis=dict(visible=False, range=[-10, 140], showgrid=False, zeroline=False),
             aspectmode='data',
             camera=dict(
                 up=dict(x=0, y=0, z=1),
@@ -655,7 +680,7 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         if event and event.get("selection", {}).get("points"):
             pt = event["selection"]["points"][0]
             try:
-                target = made if pt["curve_number"] == 1 else miss
+                target = made if pt["curve_number"] == 2 else miss # Adjusted curve index because spikes trace is now curve 1
                 if not target.empty:
                     row = target.iloc[pt["point_index"]]
                     st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
@@ -676,7 +701,7 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
             if event and event.get("selection", {}).get("points"):
                 pt = event["selection"]["points"][0]
                 try:
-                    target = made if pt["curve_number"] == 1 else miss
+                    target = made if pt["curve_number"] == 2 else miss # Adjusted curve index because spikes trace is now curve 1
                     if not target.empty:
                         row = target.iloc[pt["point_index"]]
                         st.session_state[f'selected_shot_{key_prefix}'] = {"id": row['id'], "action": row['ACTION_TYPE'], "player": row['PLAYER_NAME'], "distance": row['SHOT_DISTANCE'], "period": row['PERIOD'], "url": row['VIDEO_URL']}
