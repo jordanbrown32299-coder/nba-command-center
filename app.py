@@ -521,132 +521,132 @@ def render_trading_card(pid, pname, tid, tname, theme, df, badges):
     badge_html = "".join([f"<span style='display:inline-block; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:4px; margin-right:4px; margin-bottom:4px; border:1px solid {b['color']};'>{b['icon']} {b['name']}</span>" for b in badges[:3]])
 
     st.markdown(f"""
-    <style>
-        .card-container {{
-            perspective: 1000px;
-            width: 100%;
-            max-width: 350px;
-            margin: 0 auto;
-            padding: 20px 0;
-        }}
-        .tcg-card {{
-            position: relative;
-            width: 100%;
-            aspect-ratio: 2.5 / 3.5;
-            border-radius: 18px;
-            background: linear-gradient(135deg, #111 0%, #222 100%);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.2), inset 0 0 0 6px {primary};
-            overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            transform-style: preserve-3d;
-        }}
-        .tcg-card:hover {{
-            transform: translateY(-10px) rotateX(5deg) rotateY(-5deg);
-            box-shadow: -10px 25px 40px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 0 0 6px {primary};
-        }}
-        /* Holographic Foil Effect */
-        .tcg-card::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.3) 30%, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
-            background-size: 200% 200%;
-            mix-blend-mode: color-dodge;
-            opacity: 0;
-            z-index: 10;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }}
-        .tcg-card:hover::before {{
-            opacity: 1;
-            animation: foil-shimmer 2.5s infinite linear;
-        }}
-        @keyframes foil-shimmer {{
-            0% {{ background-position: 200% 0; }}
-            100% {{ background-position: -200% 0; }}
-        }}
-        .tcg-art {{
-            position: absolute;
-            top: 10%;
-            left: 5%;
-            width: 90%;
-            height: 50%;
-            background-image: radial-gradient(circle at center, {hex_to_rgba(primary, 0.4)} 0%, transparent 70%);
-            display: flex;
-            justify-content: center;
-            align-items: flex-end;
-            border-bottom: 2px solid {primary};
-        }}
-        .tcg-art img {{
-            height: 110%;
-            object-fit: cover;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.8));
-        }}
-        .tcg-header {{
-            position: absolute;
-            top: 0; width: 100%; padding: 12px 16px;
-            display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
-            z-index: 2;
-        }}
-        .tcg-name {{
-            font-family: 'Barlow Condensed', sans-serif;
-            font-size: 22px; font-weight: 800; text-transform: uppercase;
-            color: white; text-shadow: 2px 2px 0px #000;
-        }}
-        .tcg-hp {{
-            font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700; color: #fff;
-        }}
-        .tcg-hp span {{ color: {primary}; font-size: 20px; }}
-        .tcg-body {{
-            position: absolute;
-            bottom: 0; width: 100%; height: 40%;
-            background: rgba(10,10,10,0.95);
-            border-top: 2px solid rgba(255,255,255,0.1);
-            padding: 12px;
-            display: flex; flex-direction: column; justify-content: space-between;
-        }}
-        .tcg-badges {{ font-family: 'DM Mono', monospace; font-size: 9px; line-height: 1.2; }}
-        .tcg-stats-row {{
-            display: flex; justify-content: space-between;
-            border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;
-        }}
-        .tcg-stat {{ text-align: center; }}
-        .tcg-stat-val {{ font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 700; color: {primary}; }}
-        .tcg-stat-lbl {{ font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-dim); text-transform: uppercase; }}
-        .tcg-footer {{
-            text-align: center; font-family: 'DM Mono', monospace; font-size: 7px; color: rgba(255,255,255,0.2); margin-top: 4px;
-        }}
-    </style>
+<style>
+.card-container {{
+    perspective: 1000px;
+    width: 100%;
+    max-width: 350px;
+    margin: 0 auto;
+    padding: 20px 0;
+}}
+.tcg-card {{
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2.5 / 3.5;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #111 0%, #222 100%);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.2), inset 0 0 0 6px {primary};
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transform-style: preserve-3d;
+}}
+.tcg-card:hover {{
+    transform: translateY(-10px) rotateX(5deg) rotateY(-5deg);
+    box-shadow: -10px 25px 40px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 0 0 6px {primary};
+}}
+/* Holographic Foil Effect */
+.tcg-card::before {{
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.3) 30%, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
+    background-size: 200% 200%;
+    mix-blend-mode: color-dodge;
+    opacity: 0;
+    z-index: 10;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}}
+.tcg-card:hover::before {{
+    opacity: 1;
+    animation: foil-shimmer 2.5s infinite linear;
+}}
+@keyframes foil-shimmer {{
+    0% {{ background-position: 200% 0; }}
+    100% {{ background-position: -200% 0; }}
+}}
+.tcg-art {{
+    position: absolute;
+    top: 10%;
+    left: 5%;
+    width: 90%;
+    height: 50%;
+    background-image: radial-gradient(circle at center, {hex_to_rgba(primary, 0.4)} 0%, transparent 70%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    border-bottom: 2px solid {primary};
+}}
+.tcg-art img {{
+    height: 110%;
+    object-fit: cover;
+    filter: drop-shadow(0 10px 15px rgba(0,0,0,0.8));
+}}
+.tcg-header {{
+    position: absolute;
+    top: 0; width: 100%; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+    z-index: 2;
+}}
+.tcg-name {{
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px; font-weight: 800; text-transform: uppercase;
+    color: white; text-shadow: 2px 2px 0px #000;
+}}
+.tcg-hp {{
+    font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700; color: #fff;
+}}
+.tcg-hp span {{ color: {primary}; font-size: 20px; }}
+.tcg-body {{
+    position: absolute;
+    bottom: 0; width: 100%; height: 40%;
+    background: rgba(10,10,10,0.95);
+    border-top: 2px solid rgba(255,255,255,0.1);
+    padding: 12px;
+    display: flex; flex-direction: column; justify-content: space-between;
+}}
+.tcg-badges {{ font-family: 'DM Mono', monospace; font-size: 9px; line-height: 1.2; }}
+.tcg-stats-row {{
+    display: flex; justify-content: space-between;
+    border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;
+}}
+.tcg-stat {{ text-align: center; }}
+.tcg-stat-val {{ font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 700; color: {primary}; }}
+.tcg-stat-lbl {{ font-family: 'DM Mono', monospace; font-size: 8px; color: var(--text-dim); text-transform: uppercase; }}
+.tcg-footer {{
+    text-align: center; font-family: 'DM Mono', monospace; font-size: 7px; color: rgba(255,255,255,0.2); margin-top: 4px;
+}}
+</style>
 
-    <div class="card-container">
-        <div class="tcg-card">
-            <div class="tcg-header">
-                <div class="tcg-name">{pname}</div>
-                <div class="tcg-hp">FGA <span>{total}</span></div>
+<div class="card-container">
+    <div class="tcg-card">
+        <div class="tcg-header">
+            <div class="tcg-name">{pname}</div>
+            <div class="tcg-hp">FGA <span>{total}</span></div>
+        </div>
+        
+        <div class="tcg-art">
+            <img src="{img_url}">
+        </div>
+        
+        <div class="tcg-body">
+            <div>
+                <div style="font-family:'Barlow Condensed',sans-serif; font-size:14px; color:white; text-transform:uppercase; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">Signature Traits</div>
+                <div class="tcg-badges">{badge_html if badge_html else "<span style='color:#555;'>No current traits active...</span>"}</div>
             </div>
             
-            <div class="tcg-art">
-                <img src="{img_url}">
+            <div class="tcg-stats-row">
+                <div class="tcg-stat"><div class="tcg-stat-val">{pct:.1%}</div><div class="tcg-stat-lbl">FG%</div></div>
+                <div class="tcg-stat"><div class="tcg-stat-val">{three_pct:.1%}</div><div class="tcg-stat-lbl">3P%</div></div>
+                <div class="tcg-stat"><div class="tcg-stat-val">{pps:.2f}</div><div class="tcg-stat-lbl">PTS/SHOT</div></div>
             </div>
             
-            <div class="tcg-body">
-                <div>
-                    <div style="font-family:'Barlow Condensed',sans-serif; font-size:14px; color:white; text-transform:uppercase; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">Signature Traits</div>
-                    <div class="tcg-badges">{badge_html if badge_html else "<span style='color:#555;'>No current traits active...</span>"}</div>
-                </div>
-                
-                <div class="tcg-stats-row">
-                    <div class="tcg-stat"><div class="tcg-stat-val">{pct:.1%}</div><div class="tcg-stat-lbl">FG%</div></div>
-                    <div class="tcg-stat"><div class="tcg-stat-val">{three_pct:.1%}</div><div class="tcg-stat-lbl">3P%</div></div>
-                    <div class="tcg-stat"><div class="tcg-stat-val">{pps:.2f}</div><div class="tcg-stat-lbl">PTS/SHOT</div></div>
-                </div>
-                
-                <div class="tcg-footer">ILLUS. NBA SHOT LAB / {tname.upper()}</div>
-            </div>
+            <div class="tcg-footer">ILLUS. NBA SHOT LAB / {tname.upper()}</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
 
 # ==========================================
@@ -754,8 +754,9 @@ def render_player_dashboard(pid, tid, pname, tname, theme, key_prefix, sel_game,
         </div>
         """, unsafe_allow_html=True)
     with col_hdr2:
-        with st.popover("🎴 Pull Card", use_container_width=True):
-            render_trading_card(pid, pname, tid, tname, theme, df_main, badges)
+        if pid != 0:
+            with st.popover("🎴 Pull Card", use_container_width=True):
+                render_trading_card(pid, pname, tid, tname, theme, df_main, badges)
             
     st.markdown("</div>", unsafe_allow_html=True)
 
